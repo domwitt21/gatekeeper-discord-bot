@@ -1,0 +1,7 @@
+.brand-logo {
+    display: block;
+    width: 42px;
+    height: 42px;
+    object-fit: contain;
+    filter: drop-shadow(0 8px 16px rgba(0, 157, 255, 0.28));
+}

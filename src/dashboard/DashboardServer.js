@@ -19,7 +19,7 @@ function layout(title, user, content) {
     const account = user
         ? `<div class="account"><span>${escapeHtml(user.username)}</span><a href="/logout">Sign out</a></div>`
         : "";
-    return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)} · Sentinel</title><link rel="stylesheet" href="/styles.css"><link rel="stylesheet" href="/navigation.css"></head><body><header><a class="brand" href="/"><span class="brand-mark">S</span><span>Sentinel</span></a><nav class="header-nav" aria-label="Primary navigation"><a class="store-link" href="https://securebootlabs.com" target="_blank" rel="noopener noreferrer">SecureBootLabs Store <span aria-hidden="true">↗</span></a>${account}</nav></header><main>${content}</main></body></html>`;
+    return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)} · Gatekeeper</title><link rel="icon" type="image/png" href="/securebootlabs-logo.png"><link rel="stylesheet" href="/styles.css"><link rel="stylesheet" href="/navigation.css"><link rel="stylesheet" href="/brand.css"></head><body><header><a class="brand" href="/"><img class="brand-logo" src="/securebootlabs-logo.png" alt="SecureBootLabs"><span>Gatekeeper</span></a><nav class="header-nav" aria-label="Primary navigation"><a class="store-link" href="https://securebootlabs.com" target="_blank" rel="noopener noreferrer">SecureBootLabs Store <span aria-hidden="true">↗</span></a>${account}</nav></header><main>${content}</main></body></html>`;
 }
 
 class DashboardServer {
