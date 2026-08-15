@@ -196,7 +196,7 @@ const config = Object.freeze({
     dashboard: {
         enabled: env("DASHBOARD_ENABLED", "true") === "true",
         host: env("DASHBOARD_HOST", "127.0.0.1"),
-        port: intEnv("DASHBOARD_PORT", 3100),
+        port: intEnv("PORT", intEnv("DASHBOARD_PORT", 3100)),
         baseUrl: env("DASHBOARD_BASE_URL", "http://localhost:3100"),
         clientSecret: env("DISCORD_CLIENT_SECRET", ""),
         sessionSecret: env("DASHBOARD_SESSION_SECRET", "")

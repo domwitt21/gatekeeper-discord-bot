@@ -4,6 +4,7 @@ const express = require("express");
 const session = require("express-session");
 const helmet = require("helmet");
 const VerificationManager = require("../managers/VerificationManager");
+const SQLiteSessionStore = require("./SQLiteSessionStore");
 
 const MANAGE_GUILD = 0x20n;
 const ADMINISTRATOR = 0x8n;
@@ -31,6 +32,9 @@ class DashboardServer {
     }
 
     configure() {
+        if (this.config.baseUrl.startsWith("https://")) {
+            this.app.set("trust proxy", 1);
+        }
         this.app.use(helmet({ contentSecurityPolicy: { directives: { "img-src": ["'self'", "https://cdn.discordapp.com", "data:"] } } }));
         const dashboardUrl = new URL(this.config.baseUrl);
         this.app.use((request, response, next) => {
@@ -46,6 +50,7 @@ class DashboardServer {
         this.app.use(express.static(path.join(__dirname, "public")));
         this.app.use(session({
             name: "sentinel.sid",
+            store: new SQLiteSessionStore(this.client.database),
             secret: this.config.sessionSecret || crypto.randomBytes(32).toString("hex"),
             resave: false,
             saveUninitialized: false,
