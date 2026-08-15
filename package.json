@@ -1,0 +1,49 @@
+{
+  "name": "discord-verification-bot",
+  "version": "1.0.0",
+  "description": "A modern Discord verification bot with CAPTCHA, slash commands, SQLite, and role management.",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "deploy": "node src/utils/deployCommands.js",
+    "lint": "eslint .",
+    "check": "node scripts/check.js",
+    "test": "npm run check",
+    "prod": "node src/index.js"
+  },
+  "keywords": [
+    "discord",
+    "discordjs",
+    "verification",
+    "captcha",
+    "security",
+    "bot"
+  ],
+  "author": "SecureBootLabs",
+  "license": "MIT",
+  "dependencies": {
+    "better-sqlite3": "^13.0.1",
+    "canvas": "^3.1.2",
+    "captcha-canvas": "^3.2.1",
+    "discord.js": "^14.27.0",
+    "dotenv": "^16.6.1",
+    "express": "^5.1.0",
+    "express-session": "^1.18.2",
+    "helmet": "^8.1.0",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "eslint": "^9.31.0",
+    "nodemon": "^3.1.10"
+  },
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "allowScripts": {
+    "better-sqlite3@13.0.1": true,
+    "canvas@3.2.3": true,
+    "skia-canvas@3.0.8": true
+  }
+}

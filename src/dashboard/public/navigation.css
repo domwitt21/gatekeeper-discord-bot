@@ -1,0 +1,41 @@
+.header-nav {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+}
+
+.store-link {
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 650;
+    transition: color .2s ease;
+}
+
+.store-link:hover,
+.store-link:focus-visible {
+    color: var(--text);
+}
+
+.store-link span {
+    color: var(--accent-2);
+    margin-left: 3px;
+}
+
+@media (max-width: 620px) {
+    .header-nav {
+        gap: 12px;
+    }
+
+    .store-link {
+        font-size: 0;
+    }
+
+    .store-link::before {
+        content: "Store";
+        font-size: 12px;
+    }
+
+    .store-link span {
+        font-size: 12px;
+    }
+}
