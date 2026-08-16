@@ -14,14 +14,15 @@
  */
 
 const {
-    ActivityType
+    ActivityType,
+    Events
 } = require("discord.js");
 
 const packageJson = require("../../package.json");
 
 module.exports = {
 
-    name: "ready",
+    name: Events.ClientReady,
 
     once: true,
 
