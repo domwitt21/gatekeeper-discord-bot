@@ -104,6 +104,10 @@ class GuildRepository extends BaseRepository {
                 captcha_difficulty = ?,
                 minimum_account_age_days = ?,
                 suspicious_account_action = ?,
+                raid_protection_enabled = ?,
+                join_velocity_threshold = ?,
+                join_velocity_window_seconds = ?,
+                high_alert_minutes = ?,
                 updated_by = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE guild_id = ?
@@ -123,11 +127,20 @@ class GuildRepository extends BaseRepository {
                 settings.captchaDifficulty,
                 settings.minimumAccountAgeDays,
                 settings.suspiciousAccountAction,
+                settings.raidProtectionEnabled ? 1 : 0,
+                settings.joinVelocityThreshold,
+                settings.joinVelocityWindowSeconds,
+                settings.highAlertMinutes,
                 settings.updatedBy ?? null,
                 guildId
             ]
         );
 
+    }
+
+    setHighAlertUntil(guildId, timestamp) {
+        this.ensureConnected();
+        return this.run("UPDATE guild_settings SET high_alert_until = ?, updated_at = CURRENT_TIMESTAMP WHERE guild_id = ?", [timestamp, guildId]);
     }
 
     /**

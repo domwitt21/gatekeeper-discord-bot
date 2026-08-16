@@ -1,0 +1,9 @@
+.live.alert {
+    color: #ffb2b9;
+    border-color: rgba(255, 107, 120, 0.45);
+}
+
+.live.alert i {
+    background: var(--danger);
+    box-shadow: 0 0 12px var(--danger);
+}

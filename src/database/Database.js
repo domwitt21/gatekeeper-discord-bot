@@ -5,6 +5,7 @@ const { Pool } = require("pg");
 const GuildRepository = require("./repositories/GuildRepository");
 const CaptchaRepository = require("./repositories/CaptchaRepository");
 const LogRepository = require("./repositories/LogRepository");
+const SecurityEventRepository = require("./repositories/SecurityEventRepository");
 
 function postgresSql(sql) {
     let index = 0;
@@ -20,6 +21,7 @@ class Database {
         this.guilds = null;
         this.captchas = null;
         this.logs = null;
+        this.securityEvents = null;
         this.cleanupTimer = null;
     }
 
@@ -41,6 +43,7 @@ class Database {
         this.guilds = new GuildRepository(this);
         this.captchas = new CaptchaRepository(this);
         this.logs = new LogRepository(this);
+        this.securityEvents = new SecurityEventRepository(this);
         await this.cleanup();
         this.cleanupTimer = setInterval(() => this.cleanup().catch(error => console.error("Database cleanup failed", error)), 3600000);
         this.cleanupTimer.unref();
@@ -57,6 +60,11 @@ class Database {
         await this.db.query(this.schema("BIGSERIAL PRIMARY KEY", "TIMESTAMPTZ"));
         await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS minimum_account_age_days INTEGER DEFAULT 0");
         await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS suspicious_account_action TEXT DEFAULT 'BLOCK'");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS raid_protection_enabled INTEGER DEFAULT 0");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS join_velocity_threshold INTEGER DEFAULT 10");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS join_velocity_window_seconds INTEGER DEFAULT 60");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS high_alert_minutes INTEGER DEFAULT 10");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS high_alert_until BIGINT DEFAULT 0");
     }
 
     schema(logId, dateType) {
@@ -72,6 +80,9 @@ class Database {
                 cooldown_seconds INTEGER DEFAULT 30, lockout_minutes INTEGER DEFAULT 10,
                 captcha_difficulty TEXT DEFAULT 'MEDIUM', minimum_account_age_days INTEGER DEFAULT 0,
                 suspicious_account_action TEXT DEFAULT 'BLOCK', updated_by TEXT,
+                raid_protection_enabled INTEGER DEFAULT 0, join_velocity_threshold INTEGER DEFAULT 10,
+                join_velocity_window_seconds INTEGER DEFAULT 60, high_alert_minutes INTEGER DEFAULT 10,
+                high_alert_until BIGINT DEFAULT 0,
                 created_at ${dateType} DEFAULT CURRENT_TIMESTAMP, updated_at ${dateType} DEFAULT CURRENT_TIMESTAMP
             );
             CREATE TABLE IF NOT EXISTS captchas (
@@ -86,10 +97,14 @@ class Database {
             CREATE TABLE IF NOT EXISTS dashboard_sessions (
                 session_id TEXT PRIMARY KEY, session_data TEXT NOT NULL, expires_at BIGINT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS security_events (
+                id ${logId}, guild_id TEXT, type TEXT NOT NULL, details TEXT, timestamp BIGINT NOT NULL
+            );
             CREATE INDEX IF NOT EXISTS idx_verification_logs_guild_timestamp ON verification_logs(guild_id, timestamp DESC);
             CREATE INDEX IF NOT EXISTS idx_captchas_expires_at ON captchas(expires_at);
             CREATE INDEX IF NOT EXISTS idx_verification_logs_guild_success_timestamp ON verification_logs(guild_id, success, timestamp DESC);
             CREATE INDEX IF NOT EXISTS idx_dashboard_sessions_expires_at ON dashboard_sessions(expires_at);
+            CREATE INDEX IF NOT EXISTS idx_security_events_guild_timestamp ON security_events(guild_id, timestamp DESC);
         `;
     }
 
@@ -107,6 +122,9 @@ class Database {
             ["cooldown_seconds", "INTEGER DEFAULT 30"], ["lockout_minutes", "INTEGER DEFAULT 10"],
             ["captcha_difficulty", "TEXT DEFAULT 'MEDIUM'"], ["minimum_account_age_days", "INTEGER DEFAULT 0"],
             ["suspicious_account_action", "TEXT DEFAULT 'BLOCK'"], ["updated_by", "TEXT"]];
+        additions.push(["raid_protection_enabled", "INTEGER DEFAULT 0"], ["join_velocity_threshold", "INTEGER DEFAULT 10"],
+            ["join_velocity_window_seconds", "INTEGER DEFAULT 60"], ["high_alert_minutes", "INTEGER DEFAULT 10"],
+            ["high_alert_until", "BIGINT DEFAULT 0"]);
         for (const [name, definition] of additions) {
             if (!guildColumns.has(name)) this.db.exec(`ALTER TABLE guild_settings ADD COLUMN ${name} ${definition}`);
         }

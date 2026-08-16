@@ -55,3 +55,15 @@ test("reports database health", async t => {
     const database = await temporaryDatabase(t);
     assert.deepEqual(await database.health(), { connected: true, engine: "sqlite" });
 });
+
+test("persists high-alert state and security audit events", async t => {
+    const database = await temporaryDatabase(t);
+    await database.guilds.saveSettings({ guildId: "guild-raid", verifyChannelId: "channel", verifiedRoleId: "role" });
+    await database.guilds.setHighAlertUntil("guild-raid", 123456789);
+    await database.securityEvents.record({ guildId: "guild-raid", type: "JOIN_VELOCITY_ALERT", details: "10 joins", timestamp: 1000 });
+    const settings = await database.guilds.getSettings("guild-raid");
+    const events = await database.securityEvents.recent("guild-raid");
+    assert.equal(settings.high_alert_until, 123456789);
+    assert.equal(events.length, 1);
+    assert.equal(events[0].type, "JOIN_VELOCITY_ALERT");
+});
