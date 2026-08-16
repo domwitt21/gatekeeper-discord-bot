@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "deploy": "node src/utils/deployCommands.js",
+    "deploy": "node src/deployCommands.js",
     "migrate:postgres": "node scripts/migrate-sqlite-to-postgres.js",
     "lint": "eslint .",
     "check": "node scripts/check.js",
