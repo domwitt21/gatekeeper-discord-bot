@@ -43,6 +43,7 @@ const EmbedFactory = require("../ui/EmbedFactory");
 const CaptchaService =
     require("../services/CaptchaService");
 const AccountRiskService = require("../services/AccountRiskService");
+const TrustPolicyService = require("../services/TrustPolicyService");
 
 class VerificationManager {
 
@@ -873,6 +874,22 @@ class VerificationManager {
                 return { success: false, reason: "DISABLED" };
             }
 
+            const policies = await this.client.database.trustPolicies.listForGuild(guildId);
+            const trustDecision = TrustPolicyService.evaluate(member, settings, policies);
+            if (trustDecision.action === "DENY") {
+                const reason = trustDecision.policy.reason || "Denied by a server trust policy.";
+                await this.client.database.securityEvents.record({ guildId, type: "TRUST_POLICY_DENY", details: `${member.id}: ${reason}` });
+                try { await this.logVerification({ member, success: false, reason }); } catch (error) { console.error("Unable to log policy denial", error); }
+                return { success: false, reason: "POLICY_DENIED" };
+            }
+            if (trustDecision.action === "BYPASS") {
+                await this.assignVerifiedRole(member);
+                await this.client.database.securityEvents.record({ guildId, type: "TRUST_POLICY_BYPASS",
+                    details: `${member.id}: ${trustDecision.source}` });
+                try { await this.logVerification({ member, success: true }); } catch (error) { console.error("Unable to log trusted bypass", error); }
+                return { success: true, bypass: true, source: trustDecision.source };
+            }
+
             const accountRisk = AccountRiskService.evaluate(member.user, settings);
             if (accountRisk.suspicious) {
                 const policy = accountRisk.highAlertActive ? "high-alert minimum" : "server minimum";
@@ -1195,6 +1212,10 @@ class VerificationManager {
                     });
                 }
 
+                if (result.reason === "POLICY_DENIED") {
+                    await options.interaction.reply({ content: "Verification is unavailable for this account. Contact a server administrator if you believe this is an error.", ephemeral: true });
+                }
+
                 return result;
 
 
@@ -1386,6 +1407,11 @@ class VerificationManager {
                 });
 
 
+            }
+
+            if (result.bypass) {
+                await options.interaction.reply({ embeds: [EmbedFactory.success("Verification Complete", "You matched a trusted server policy and were verified automatically.")], ephemeral: true });
+                return result;
             }
 
             const sessionKey = this.sessionKey(interaction.guild.id, userId);

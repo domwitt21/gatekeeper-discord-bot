@@ -17,3 +17,16 @@
 .security-events {
     margin-top: 18px;
 }
+
+.policy-panel {
+    margin-bottom: 18px;
+    scroll-margin-top: 140px;
+}
+
+.policy-panel > form > button {
+    margin-top: 18px;
+}
+
+.policy-table {
+    margin-top: 26px;
+}

@@ -6,6 +6,7 @@ const GuildRepository = require("./repositories/GuildRepository");
 const CaptchaRepository = require("./repositories/CaptchaRepository");
 const LogRepository = require("./repositories/LogRepository");
 const SecurityEventRepository = require("./repositories/SecurityEventRepository");
+const TrustPolicyRepository = require("./repositories/TrustPolicyRepository");
 
 function postgresSql(sql) {
     let index = 0;
@@ -22,6 +23,7 @@ class Database {
         this.captchas = null;
         this.logs = null;
         this.securityEvents = null;
+        this.trustPolicies = null;
         this.cleanupTimer = null;
     }
 
@@ -44,6 +46,7 @@ class Database {
         this.captchas = new CaptchaRepository(this);
         this.logs = new LogRepository(this);
         this.securityEvents = new SecurityEventRepository(this);
+        this.trustPolicies = new TrustPolicyRepository(this);
         await this.cleanup();
         this.cleanupTimer = setInterval(() => this.cleanup().catch(error => console.error("Database cleanup failed", error)), 3600000);
         this.cleanupTimer.unref();
@@ -69,6 +72,8 @@ class Database {
         await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS high_alert_minimum_account_age_days INTEGER DEFAULT 7");
         await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS raid_alert_cooldown_minutes INTEGER DEFAULT 30");
         await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS last_raid_alert_at BIGINT DEFAULT 0");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS automatic_trusted_verification INTEGER DEFAULT 0");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS trusted_account_age_days INTEGER DEFAULT 90");
     }
 
     schema(logId, dateType) {
@@ -89,6 +94,7 @@ class Database {
                 high_alert_until BIGINT DEFAULT 0,
                 high_alert_action TEXT DEFAULT 'MONITOR', high_alert_minimum_account_age_days INTEGER DEFAULT 7,
                 raid_alert_cooldown_minutes INTEGER DEFAULT 30, last_raid_alert_at BIGINT DEFAULT 0,
+                automatic_trusted_verification INTEGER DEFAULT 0, trusted_account_age_days INTEGER DEFAULT 90,
                 created_at ${dateType} DEFAULT CURRENT_TIMESTAMP, updated_at ${dateType} DEFAULT CURRENT_TIMESTAMP
             );
             CREATE TABLE IF NOT EXISTS captchas (
@@ -106,11 +112,17 @@ class Database {
             CREATE TABLE IF NOT EXISTS security_events (
                 id ${logId}, guild_id TEXT, type TEXT NOT NULL, details TEXT, timestamp BIGINT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS trust_policies (
+                guild_id TEXT, subject_type TEXT NOT NULL, subject_id TEXT NOT NULL, policy TEXT NOT NULL,
+                reason TEXT, expires_at BIGINT DEFAULT 0, created_by TEXT, created_at BIGINT NOT NULL,
+                PRIMARY KEY(guild_id, subject_type, subject_id)
+            );
             CREATE INDEX IF NOT EXISTS idx_verification_logs_guild_timestamp ON verification_logs(guild_id, timestamp DESC);
             CREATE INDEX IF NOT EXISTS idx_captchas_expires_at ON captchas(expires_at);
             CREATE INDEX IF NOT EXISTS idx_verification_logs_guild_success_timestamp ON verification_logs(guild_id, success, timestamp DESC);
             CREATE INDEX IF NOT EXISTS idx_dashboard_sessions_expires_at ON dashboard_sessions(expires_at);
             CREATE INDEX IF NOT EXISTS idx_security_events_guild_timestamp ON security_events(guild_id, timestamp DESC);
+            CREATE INDEX IF NOT EXISTS idx_trust_policies_guild ON trust_policies(guild_id, policy);
         `;
     }
 
@@ -134,6 +146,7 @@ class Database {
         additions.push(["high_alert_action", "TEXT DEFAULT 'MONITOR'"],
             ["high_alert_minimum_account_age_days", "INTEGER DEFAULT 7"],
             ["raid_alert_cooldown_minutes", "INTEGER DEFAULT 30"], ["last_raid_alert_at", "BIGINT DEFAULT 0"]);
+        additions.push(["automatic_trusted_verification", "INTEGER DEFAULT 0"], ["trusted_account_age_days", "INTEGER DEFAULT 90"]);
         for (const [name, definition] of additions) {
             if (!guildColumns.has(name)) this.db.exec(`ALTER TABLE guild_settings ADD COLUMN ${name} ${definition}`);
         }
@@ -166,6 +179,7 @@ class Database {
         const now = Date.now();
         await this.run("DELETE FROM captchas WHERE expires_at <= ?", [now]);
         await this.run("DELETE FROM dashboard_sessions WHERE expires_at <= ?", [now]);
+        await this.run("DELETE FROM trust_policies WHERE expires_at > 0 AND expires_at <= ?", [now]);
         const days = Number(this.options.logRetentionDays) || 0;
         if (days > 0) {
             await this.run("DELETE FROM verification_logs WHERE timestamp < ?", [Math.floor(now / 1000) - days * 86400]);

@@ -18,6 +18,7 @@ module.exports = CommandBuilder.create({
         await VerificationManager.removeExistingVerification(client, settings);
         await client.database.guilds.removeSettings(interaction.guild.id);
         await client.database.run("DELETE FROM captchas WHERE guild_id = ?", [interaction.guild.id]);
+        await client.database.run("DELETE FROM trust_policies WHERE guild_id = ?", [interaction.guild.id]);
         return ResponseHandler.success(interaction, "Verification configuration and active challenges were removed.");
     }
 });

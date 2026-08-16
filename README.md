@@ -2,6 +2,16 @@
 
 Gatekeeper is SecureBootLabs' Discord verification bot and administration dashboard. It provides CAPTCHA verification, automatic role assignment, configurable challenge policies, audit logs, and verification analytics.
 
+## Trust and deny policies
+
+Server administrators can manage explicit trusted users, trusted roles, and denied users from the dashboard or with `/policy`. Policies may be permanent or expire automatically. Denied users take precedence over trusted-user rules, while trusted users and roles bypass CAPTCHA and receive the configured verified role. Account-age auto-trust is available but disabled by default.
+
+After adding or changing slash commands, register them with Discord once:
+
+```sh
+npm run deploy
+```
+
 ## Database modes
 
 Gatekeeper uses PostgreSQL whenever `DATABASE_URL` is set. Without it, the bot uses the SQLite file configured by `DATABASE_PATH`. SQLite remains convenient for local development; PostgreSQL is recommended for production because it survives application replacement and supports future horizontal scaling.

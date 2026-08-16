@@ -111,6 +111,8 @@ class GuildRepository extends BaseRepository {
                 high_alert_action = ?,
                 high_alert_minimum_account_age_days = ?,
                 raid_alert_cooldown_minutes = ?,
+                automatic_trusted_verification = ?,
+                trusted_account_age_days = ?,
                 updated_by = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE guild_id = ?
@@ -137,6 +139,8 @@ class GuildRepository extends BaseRepository {
                 settings.highAlertAction,
                 settings.highAlertMinimumAccountAgeDays,
                 settings.raidAlertCooldownMinutes,
+                settings.automaticTrustedVerification ? 1 : 0,
+                settings.trustedAccountAgeDays,
                 settings.updatedBy ?? null,
                 guildId
             ]
