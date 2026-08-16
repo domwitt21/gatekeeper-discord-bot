@@ -60,7 +60,17 @@ class DashboardServer {
     }
 
     routes() {
-        this.app.get("/health", (request, response) => response.json({ status: "ok", bot: this.client.isReady(), database: this.client.database.isConnected() }));
+        this.app.get("/health", async (request, response) => {
+            const database = await this.client.database.health();
+            const healthy = this.client.isReady() && database.connected;
+            response.status(healthy ? 200 : 503).json({
+                status: healthy ? "ok" : "degraded",
+                bot: this.client.isReady(),
+                database,
+                uptimeSeconds: Math.floor(process.uptime()),
+                timestamp: new Date().toISOString()
+            });
+        });
         this.app.get("/login", (request, response) => {
             if (!this.config.clientSecret) return response.status(503).send(layout("Setup required", null, this.setupRequired()));
             request.session.regenerate(error => {
@@ -114,7 +124,7 @@ class DashboardServer {
                         buttonLabel: dashboardSettings.buttonLabel
                     }
                 });
-                this.client.database.guilds.updateDashboardSettings(guild.id, dashboardSettings);
+                await this.client.database.guilds.updateDashboardSettings(guild.id, dashboardSettings);
                 response.redirect(`/guild/${guild.id}?saved=1`);
             } catch (error) { next(error); }
         });
@@ -187,7 +197,7 @@ class DashboardServer {
             failures,
             total,
             successRate: total ? Number((successes / total * 100).toFixed(1)) : 0,
-            active: this.client.database.captchas.getAll().filter(item => item.guild_id === guildId).length,
+            active: (await this.client.database.captchas.getAll()).filter(item => item.guild_id === guildId).length,
             recent,
             settings,
             daily,

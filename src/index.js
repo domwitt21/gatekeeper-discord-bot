@@ -77,7 +77,7 @@ client.captchas = new Collection();
 
 client.config = config;
 
-client.database = new Database(config.database.path);
+client.database = new Database(config.database);
 
 /**
  * ------------------------------------------------------------
@@ -97,7 +97,7 @@ client.database = new Database(config.database.path);
 
         console.log("Loading database...");
 
-        client.database.initialize();
+        await client.database.initialize();
 
         console.log("Loading commands...");
 
@@ -153,7 +153,7 @@ async function shutdown(signal) {
 
         if (client.database) {
 
-            client.database.close();
+            await client.database.close();
 
         }
 

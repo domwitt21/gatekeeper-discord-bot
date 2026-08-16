@@ -268,9 +268,9 @@ class LogRepository extends BaseRepository {
      * @param {string} guildId
      * @returns {number}
      */
-    getSuccessRate(guildId) {
+    async getSuccessRate(guildId) {
 
-        const total = this.getTotalAttempts(guildId);
+        const total = await this.getTotalAttempts(guildId);
 
         if (total === 0) {
 
@@ -278,7 +278,7 @@ class LogRepository extends BaseRepository {
 
         }
 
-        const success = this.getSuccessCount(guildId);
+        const success = await this.getSuccessCount(guildId);
 
         return Number(
             ((success / total) * 100).toFixed(2)

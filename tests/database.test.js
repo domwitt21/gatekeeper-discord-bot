@@ -1,0 +1,57 @@
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const test = require("node:test");
+const Database = require("../src/database/Database");
+
+async function temporaryDatabase(t) {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "gatekeeper-db-"));
+    const database = new Database({
+        path: path.join(directory, "verification.sqlite"),
+        url: "",
+        logRetentionDays: 90
+    });
+    await database.initialize();
+    t.after(async () => {
+        await database.close();
+        fs.rmSync(directory, { recursive: true, force: true });
+    });
+    return database;
+}
+
+test("persists guild settings across a restart", async t => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "gatekeeper-restart-"));
+    const databasePath = path.join(directory, "verification.sqlite");
+    const options = { path: databasePath, url: "", logRetentionDays: 90 };
+    const first = new Database(options);
+    await first.initialize();
+    await first.guilds.saveSettings({ guildId: "guild-1", verifyChannelId: "channel-1", verifiedRoleId: "role-1" });
+    await first.close();
+
+    const second = new Database(options);
+    await second.initialize();
+    const settings = await second.guilds.getSettings("guild-1");
+    assert.equal(settings.verify_channel_id, "channel-1");
+    assert.equal(settings.verified_role_id, "role-1");
+    await second.close();
+    fs.rmSync(directory, { recursive: true, force: true });
+    t.assert.ok(true);
+});
+
+test("cleans expired challenges, sessions, and old logs", async t => {
+    const database = await temporaryDatabase(t);
+    const now = Date.now();
+    await database.captchas.create({ userId: "user-1", guildId: "guild-1", captchaId: "old", hash: "hash", salt: "salt", maxAttempts: 3, createdAt: now - 1000, expiresAt: now - 1 });
+    await database.run("INSERT INTO dashboard_sessions (session_id, session_data, expires_at) VALUES (?, ?, ?)", ["old-session", "{}", now - 1]);
+    await database.logs.record({ guildId: "guild-1", userId: "user-1", success: true, timestamp: Math.floor(now / 1000) - 100 * 86400 });
+    await database.cleanup();
+    assert.equal((await database.captchas.getAll()).length, 0);
+    assert.equal(await database.get("SELECT 1 FROM dashboard_sessions WHERE session_id = ?", ["old-session"]), undefined);
+    assert.equal(await database.logs.getTotalAttempts("guild-1"), 0);
+});
+
+test("reports database health", async t => {
+    const database = await temporaryDatabase(t);
+    assert.deepEqual(await database.health(), { connected: true, engine: "sqlite" });
+});

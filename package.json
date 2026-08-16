@@ -8,9 +8,10 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "deploy": "node src/utils/deployCommands.js",
+    "migrate:postgres": "node scripts/migrate-sqlite-to-postgres.js",
     "lint": "eslint .",
     "check": "node scripts/check.js",
-    "test": "npm run check",
+    "test": "npm run check && node --test tests/*.test.js",
     "prod": "node src/index.js"
   },
   "keywords": [
@@ -32,6 +33,7 @@
     "express": "^5.1.0",
     "express-session": "^1.18.2",
     "helmet": "^8.1.0",
+    "pg": "^8.16.3",
     "uuid": "^11.1.0"
   },
   "devDependencies": {

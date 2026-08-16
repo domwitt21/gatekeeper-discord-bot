@@ -84,12 +84,18 @@ const config = Object.freeze({
      */
     database: {
 
+        url: env("DATABASE_URL", ""),
+
         path: path.resolve(
             env(
                 "DATABASE_PATH",
                 "./data/verification.sqlite"
             )
-        )
+        ),
+
+        ssl: env("DATABASE_SSL", "true") !== "false",
+
+        logRetentionDays: intEnv("LOG_RETENTION_DAYS", 0)
 
     },
 

@@ -4,16 +4,6 @@ class SQLiteSessionStore extends session.Store {
     constructor(database) {
         super();
         this.database = database;
-        this.database.run(`
-            CREATE TABLE IF NOT EXISTS dashboard_sessions (
-                session_id TEXT PRIMARY KEY,
-                session_data TEXT NOT NULL,
-                expires_at INTEGER NOT NULL
-            )
-        `);
-        this.database.run(
-            "CREATE INDEX IF NOT EXISTS idx_dashboard_sessions_expires_at ON dashboard_sessions(expires_at)"
-        );
         this.cleanupTimer = setInterval(() => this.clearExpired(), 15 * 60 * 1000);
         this.cleanupTimer.unref();
     }
@@ -24,9 +14,9 @@ class SQLiteSessionStore extends session.Store {
         return Date.now() + (sessionData.cookie?.maxAge || 86400000);
     }
 
-    get(sessionId, callback) {
+    async get(sessionId, callback) {
         try {
-            const row = this.database.get(
+            const row = await this.database.get(
                 "SELECT session_data, expires_at FROM dashboard_sessions WHERE session_id = ?",
                 [sessionId]
             );
@@ -40,9 +30,9 @@ class SQLiteSessionStore extends session.Store {
         }
     }
 
-    set(sessionId, sessionData, callback = () => {}) {
+    async set(sessionId, sessionData, callback = () => {}) {
         try {
-            this.database.run(`
+            await this.database.run(`
                 INSERT INTO dashboard_sessions (session_id, session_data, expires_at)
                 VALUES (?, ?, ?)
                 ON CONFLICT(session_id) DO UPDATE SET
@@ -55,18 +45,18 @@ class SQLiteSessionStore extends session.Store {
         }
     }
 
-    destroy(sessionId, callback = () => {}) {
+    async destroy(sessionId, callback = () => {}) {
         try {
-            this.database.run("DELETE FROM dashboard_sessions WHERE session_id = ?", [sessionId]);
+            await this.database.run("DELETE FROM dashboard_sessions WHERE session_id = ?", [sessionId]);
             callback(null);
         } catch (error) {
             callback(error);
         }
     }
 
-    touch(sessionId, sessionData, callback = () => {}) {
+    async touch(sessionId, sessionData, callback = () => {}) {
         try {
-            this.database.run(
+            await this.database.run(
                 "UPDATE dashboard_sessions SET expires_at = ? WHERE session_id = ?",
                 [this.expiration(sessionData), sessionId]
             );
@@ -76,9 +66,9 @@ class SQLiteSessionStore extends session.Store {
         }
     }
 
-    clearExpired() {
+    async clearExpired() {
         try {
-            this.database.run("DELETE FROM dashboard_sessions WHERE expires_at <= ?", [Date.now()]);
+            await this.database.run("DELETE FROM dashboard_sessions WHERE expires_at <= ?", [Date.now()]);
         } catch (error) {
             console.error("Unable to clean expired dashboard sessions", error);
         }

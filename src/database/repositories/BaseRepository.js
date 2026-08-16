@@ -123,9 +123,9 @@ class BaseRepository {
      * @param {Array} params
      * @returns {boolean}
      */
-    exists(sql, params = []) {
+    async exists(sql, params = []) {
 
-        return this.get(sql, params) !== undefined;
+        return (await this.get(sql, params)) !== undefined;
 
     }
 
@@ -142,9 +142,9 @@ class BaseRepository {
      * @param {Array} params
      * @returns {number}
      */
-    count(sql, params = []) {
+    async count(sql, params = []) {
 
-        const result = this.get(sql, params);
+        const result = await this.get(sql, params);
 
         if (!result) {
 
@@ -165,9 +165,9 @@ class BaseRepository {
      * @param {Array} params
      * @returns {*}
      */
-    first(sql, params = []) {
+    async first(sql, params = []) {
 
-        return this.get(sql, params) ?? null;
+        return (await this.get(sql, params)) ?? null;
 
     }
 
@@ -180,9 +180,9 @@ class BaseRepository {
      * @param {Array} params
      * @returns {Array}
      */
-    list(sql, params = []) {
+    async list(sql, params = []) {
 
-        return this.all(sql, params) ?? [];
+        return (await this.all(sql, params)) ?? [];
 
     }
 
