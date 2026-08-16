@@ -35,3 +35,22 @@ test("an existing high-alert period is not retriggered", () => {
     assert.equal(result.triggered, false);
     assert.equal(result.active, true);
 });
+
+test("alert cooldown suppresses duplicate notifications without suppressing high alert", () => {
+    const service = new JoinVelocityService();
+    const coolingDown = { ...settings, last_raid_alert_at: 1000, raid_alert_cooldown_minutes: 30 };
+    service.recordJoin("guild", coolingDown, 2000);
+    service.recordJoin("guild", coolingDown, 3000);
+    const result = service.recordJoin("guild", coolingDown, 4000);
+    assert.equal(result.triggered, true);
+    assert.equal(result.active, true);
+    assert.equal(result.notify, false);
+});
+
+test("manual reset clears the current join window", () => {
+    const service = new JoinVelocityService();
+    service.recordJoin("guild", settings, 1000);
+    service.recordJoin("guild", settings, 2000);
+    service.resetGuild("guild");
+    assert.equal(service.recordJoin("guild", settings, 3000).count, 1);
+});

@@ -3,6 +3,8 @@ const EmbedFactory = require("../ui/EmbedFactory");
 class JoinVelocityService {
     constructor() { this.joins = new Map(); }
 
+    resetGuild(guildId) { this.joins.delete(guildId); }
+
     recordJoin(guildId, settings = {}, now = Date.now()) {
         if (Number(settings.raid_protection_enabled) !== 1) {
             this.joins.delete(guildId);
@@ -11,6 +13,7 @@ class JoinVelocityService {
         const threshold = this.integer(settings.join_velocity_threshold, 3, 100, 10);
         const windowSeconds = this.integer(settings.join_velocity_window_seconds, 10, 600, 60);
         const highAlertMinutes = this.integer(settings.high_alert_minutes, 1, 120, 10);
+        const alertCooldownMinutes = this.integer(settings.raid_alert_cooldown_minutes, 1, 1440, 30);
         const cutoff = now - windowSeconds * 1000;
         const recent = (this.joins.get(guildId) || []).filter(timestamp => timestamp >= cutoff);
         recent.push(now);
@@ -19,8 +22,10 @@ class JoinVelocityService {
         const alreadyActive = existingUntil > now;
         const triggered = recent.length >= threshold && !alreadyActive;
         const highAlertUntil = triggered ? now + highAlertMinutes * 60000 : existingUntil;
+        const lastAlertAt = Number(settings.last_raid_alert_at) || 0;
+        const notify = triggered && now - lastAlertAt >= alertCooldownMinutes * 60000;
         return { enabled: true, triggered, active: alreadyActive || triggered, count: recent.length,
-            threshold, windowSeconds, highAlertMinutes, highAlertUntil };
+            threshold, windowSeconds, highAlertMinutes, highAlertUntil, alertCooldownMinutes, notify };
     }
 
     integer(value, minimum, maximum, fallback) {
@@ -35,11 +40,12 @@ class JoinVelocityService {
         await client.database.guilds.setHighAlertUntil(member.guild.id, result.highAlertUntil);
         await client.database.securityEvents.record({ guildId: member.guild.id, type: "JOIN_VELOCITY_ALERT",
             details: `${result.count} joins within ${result.windowSeconds} seconds`, timestamp: now });
-        if (settings?.log_channel_id) {
+        if (result.notify) await client.database.guilds.setLastRaidAlertAt(member.guild.id, now);
+        if (result.notify && settings?.log_channel_id) {
             try {
                 const channel = await member.guild.channels.fetch(settings.log_channel_id);
                 if (channel) await channel.send({ embeds: [EmbedFactory.warning("High-Alert Mode Activated",
-                    `${result.count} members joined within ${result.windowSeconds} seconds. Gatekeeper will monitor this server in high-alert mode for ${result.highAlertMinutes} minutes. No members were automatically blocked.`)] });
+                    `${result.count} members joined within ${result.windowSeconds} seconds. Gatekeeper activated high-alert mode for ${result.highAlertMinutes} minutes. Enforcement follows the server's configured high-alert action.`)] });
             } catch (error) { console.error("Unable to send join-velocity alert", error); }
         }
         return result;

@@ -108,6 +108,9 @@ class GuildRepository extends BaseRepository {
                 join_velocity_threshold = ?,
                 join_velocity_window_seconds = ?,
                 high_alert_minutes = ?,
+                high_alert_action = ?,
+                high_alert_minimum_account_age_days = ?,
+                raid_alert_cooldown_minutes = ?,
                 updated_by = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE guild_id = ?
@@ -131,6 +134,9 @@ class GuildRepository extends BaseRepository {
                 settings.joinVelocityThreshold,
                 settings.joinVelocityWindowSeconds,
                 settings.highAlertMinutes,
+                settings.highAlertAction,
+                settings.highAlertMinimumAccountAgeDays,
+                settings.raidAlertCooldownMinutes,
                 settings.updatedBy ?? null,
                 guildId
             ]
@@ -141,6 +147,11 @@ class GuildRepository extends BaseRepository {
     setHighAlertUntil(guildId, timestamp) {
         this.ensureConnected();
         return this.run("UPDATE guild_settings SET high_alert_until = ?, updated_at = CURRENT_TIMESTAMP WHERE guild_id = ?", [timestamp, guildId]);
+    }
+
+    setLastRaidAlertAt(guildId, timestamp) {
+        this.ensureConnected();
+        return this.run("UPDATE guild_settings SET last_raid_alert_at = ? WHERE guild_id = ?", [timestamp, guildId]);
     }
 
     /**

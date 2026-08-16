@@ -875,7 +875,14 @@ class VerificationManager {
 
             const accountRisk = AccountRiskService.evaluate(member.user, settings);
             if (accountRisk.suspicious) {
-                const reason = `Discord account is ${accountRisk.ageDays} day(s) old; server minimum is ${accountRisk.minimumDays} day(s).`;
+                const policy = accountRisk.highAlertActive ? "high-alert minimum" : "server minimum";
+                const reason = `Discord account is ${accountRisk.ageDays} day(s) old; ${policy} is ${accountRisk.minimumDays} day(s).`;
+                if (accountRisk.highAlertActive) {
+                    try {
+                        await this.client.database.securityEvents.record({ guildId, type: accountRisk.action === "BLOCK" ? "HIGH_ALERT_BLOCK" : "HIGH_ALERT_MONITOR",
+                            details: `${member.id}: ${reason}` });
+                    } catch (error) { console.error("Unable to record high-alert decision", error); }
+                }
                 if (accountRisk.action === "BLOCK") {
                     try {
                         await this.logVerification({ member, success: false, reason });

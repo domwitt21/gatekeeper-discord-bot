@@ -125,6 +125,18 @@ class DashboardServer {
                     }
                 });
                 await this.client.database.guilds.updateDashboardSettings(guild.id, dashboardSettings);
+                if (["enable", "disable"].includes(request.body.manualHighAlert)) {
+                    const enabledUntil = request.body.manualHighAlert === "enable"
+                        ? Date.now() + dashboardSettings.highAlertMinutes * 60000
+                        : 0;
+                    await this.client.database.guilds.setHighAlertUntil(guild.id, enabledUntil);
+                    if (request.body.manualHighAlert === "disable") this.client.joinVelocityService?.resetGuild(guild.id);
+                    await this.client.database.securityEvents.record({
+                        guildId: guild.id,
+                        type: request.body.manualHighAlert === "enable" ? "MANUAL_HIGH_ALERT_ENABLED" : "MANUAL_HIGH_ALERT_DISABLED",
+                        details: `Dashboard action by ${request.session.user.username}`
+                    });
+                }
                 response.redirect(`/guild/${guild.id}?saved=1`);
             } catch (error) { next(error); }
         });
@@ -160,6 +172,7 @@ class DashboardServer {
         const color = /^#[0-9A-F]{6}$/i.test(body.messageColor || "") ? body.messageColor.toUpperCase() : "#5865F2";
         const difficulty = ["EASY", "MEDIUM", "HARD"].includes(body.captchaDifficulty) ? body.captchaDifficulty : "MEDIUM";
         const suspiciousAction = ["BLOCK", "LOG_ONLY"].includes(body.suspiciousAccountAction) ? body.suspiciousAccountAction : "BLOCK";
+        const highAlertAction = ["MONITOR", "BLOCK"].includes(body.highAlertAction) ? body.highAlertAction : "MONITOR";
         return {
             verificationEnabled: body.verificationEnabled === "on",
             messageTitle: text(body.messageTitle, 256, "Server Verification"),
@@ -179,6 +192,9 @@ class DashboardServer {
             joinVelocityThreshold: integer(body.joinVelocityThreshold, 3, 100, 10),
             joinVelocityWindowSeconds: integer(body.joinVelocityWindowSeconds, 10, 600, 60),
             highAlertMinutes: integer(body.highAlertMinutes, 1, 120, 10),
+            highAlertAction,
+            highAlertMinimumAccountAgeDays: integer(body.highAlertMinimumAccountAgeDays, 0, 365, 7),
+            raidAlertCooldownMinutes: integer(body.raidAlertCooldownMinutes, 1, 1440, 30),
             updatedBy: userId
         };
     }
@@ -190,13 +206,14 @@ class DashboardServer {
     }
 
     async overview(guildId, filters = {}) {
-        const [successes, failures, recent, settings, daily, failureReasons] = await Promise.all([
+        const [successes, failures, recent, settings, daily, failureReasons, securityEvents] = await Promise.all([
             this.client.database.logs.getSuccessCount(guildId),
             this.client.database.logs.getFailureCount(guildId),
             this.client.database.logs.search(guildId, filters),
             this.client.database.guilds.getSettings(guildId),
             this.client.database.logs.getDailyCounts(guildId, 7),
-            this.client.database.logs.getTopFailureReasons(guildId, 5)
+            this.client.database.logs.getTopFailureReasons(guildId, 5),
+            this.client.database.securityEvents.recent(guildId, 10)
         ]);
         const total = successes + failures;
         return {
@@ -208,7 +225,8 @@ class DashboardServer {
             recent,
             settings,
             daily,
-            failureReasons
+            failureReasons,
+            securityEvents
         };
     }
 
@@ -268,6 +286,7 @@ class DashboardServer {
         const raidEnabled = settings.raid_protection_enabled === 1;
         const highAlertActive = Number(settings.high_alert_until) > Date.now();
         const raidStatus = highAlertActive ? `High alert until ${new Date(Number(settings.high_alert_until)).toLocaleTimeString()}` : raidEnabled ? "Monitoring joins" : "Monitoring disabled";
+        const securityRows = data.securityEvents.map(event => `<tr><td><span class="status ${event.type.includes("DISABLED") ? "failed" : "success"}">${escapeHtml(event.type.replaceAll("_", " "))}</span></td><td>${escapeHtml(event.details || "—")}</td><td>${new Date(Number(event.timestamp)).toLocaleString()}</td></tr>`).join("") || '<tr><td colspan="3" class="empty-state">No security events recorded.</td></tr>';
 
         return `${notice}
         <section class="guild-heading"><div><a href="/">← Servers</a><p class="eyebrow">Gatekeeper</p><h1>Verification overview</h1></div><span class="live ${highAlertActive ? "alert" : ""}"><i></i> ${escapeHtml(raidStatus)}</span></section>
@@ -276,11 +295,12 @@ class DashboardServer {
         <section class="analytics-grid"><article class="panel"><div class="panel-title"><div><p class="eyebrow">Last seven days</p><h2>Verification volume</h2></div><div class="legend"><span><i class="success-dot"></i>Success</span><span><i class="failed-dot"></i>Failed</span></div></div><div class="chart">${chart}</div></article><article class="panel"><div class="panel-title"><div><p class="eyebrow">Friction</p><h2>Failure reasons</h2></div></div><ul class="failure-list">${failureRows}</ul></article></section>
         <form id="configuration" class="settings-form" method="post" action="/guild/${guild.id}/settings"><input type="hidden" name="csrf" value="${request.session.csrf}">
         <section class="settings-grid"><article class="panel"><div class="panel-title"><div><p class="eyebrow">Core setup</p><h2>Verification flow</h2></div><label class="toggle"><input type="checkbox" name="verificationEnabled" ${enabled ? "checked" : ""}><span></span><b>${enabled ? "Enabled" : "Disabled"}</b></label></div><div class="form-grid"><label>Verification channel<select name="verifyChannelId" required>${channelOptions}</select></label><label>Verified role<select name="verifiedRoleId" required>${roleOptions}</select></label><label class="full">Log channel<select name="logChannelId">${logChannelOptions}</select></label></div></article>
-        <article class="panel"><div class="panel-title"><div><p class="eyebrow">Challenge policy</p><h2>CAPTCHA security</h2></div></div><div class="form-grid compact"><label>Difficulty<select name="captchaDifficulty"><option ${selected(settings.captcha_difficulty, "EASY")}>EASY</option><option ${selected(settings.captcha_difficulty || "MEDIUM", "MEDIUM")}>MEDIUM</option><option ${selected(settings.captcha_difficulty, "HARD")}>HARD</option></select></label><label>Code length<input type="number" name="captchaLength" min="4" max="10" value="${settings.captcha_length || 6}"></label><label>Expires after (minutes)<input type="number" name="captchaExpirationMinutes" min="1" max="30" value="${settings.captcha_expiration_minutes || 5}"></label><label>Maximum attempts<input type="number" name="maxAttempts" min="1" max="10" value="${settings.max_attempts || 5}"></label><label>Retry cooldown (seconds)<input type="number" name="cooldownSeconds" min="0" max="300" value="${settings.cooldown_seconds ?? 30}"></label><label>Lockout (minutes)<input type="number" name="lockoutMinutes" min="1" max="1440" value="${settings.lockout_minutes || 10}"></label></div></article><article class="panel"><div class="panel-title"><div><p class="eyebrow">Account screening</p><h2>New-account policy</h2></div></div><div class="form-grid"><label>Minimum account age (days)<input type="number" name="minimumAccountAgeDays" min="0" max="365" value="${settings.minimum_account_age_days ?? 0}"><small>Set to 0 to disable account-age screening.</small></label><label>Accounts below minimum<select name="suspiciousAccountAction"><option value="BLOCK" ${selected(settings.suspicious_account_action || "BLOCK", "BLOCK")}>Block verification</option><option value="LOG_ONLY" ${selected(settings.suspicious_account_action, "LOG_ONLY")}>Log only and allow</option></select></label></div></article><article class="panel"><div class="panel-title"><div><p class="eyebrow">Raid monitoring</p><h2>Join-velocity protection</h2></div><label class="toggle"><input type="checkbox" name="raidProtectionEnabled" ${raidEnabled ? "checked" : ""}><span></span><b>${raidEnabled ? "Enabled" : "Disabled"}</b></label></div><div class="form-grid compact"><label>Join threshold<input type="number" name="joinVelocityThreshold" min="3" max="100" value="${settings.join_velocity_threshold ?? 10}"></label><label>Time window (seconds)<input type="number" name="joinVelocityWindowSeconds" min="10" max="600" value="${settings.join_velocity_window_seconds ?? 60}"></label><label>High-alert duration (minutes)<input type="number" name="highAlertMinutes" min="1" max="120" value="${settings.high_alert_minutes ?? 10}"></label><label>Status<input value="${escapeHtml(raidStatus)}" disabled></label><label class="full"><small>Monitor-only mode: Gatekeeper records and reports bursts but does not automatically block members.</small></label></div></article></section>
+        <article class="panel"><div class="panel-title"><div><p class="eyebrow">Challenge policy</p><h2>CAPTCHA security</h2></div></div><div class="form-grid compact"><label>Difficulty<select name="captchaDifficulty"><option ${selected(settings.captcha_difficulty, "EASY")}>EASY</option><option ${selected(settings.captcha_difficulty || "MEDIUM", "MEDIUM")}>MEDIUM</option><option ${selected(settings.captcha_difficulty, "HARD")}>HARD</option></select></label><label>Code length<input type="number" name="captchaLength" min="4" max="10" value="${settings.captcha_length || 6}"></label><label>Expires after (minutes)<input type="number" name="captchaExpirationMinutes" min="1" max="30" value="${settings.captcha_expiration_minutes || 5}"></label><label>Maximum attempts<input type="number" name="maxAttempts" min="1" max="10" value="${settings.max_attempts || 5}"></label><label>Retry cooldown (seconds)<input type="number" name="cooldownSeconds" min="0" max="300" value="${settings.cooldown_seconds ?? 30}"></label><label>Lockout (minutes)<input type="number" name="lockoutMinutes" min="1" max="1440" value="${settings.lockout_minutes || 10}"></label></div></article><article class="panel"><div class="panel-title"><div><p class="eyebrow">Account screening</p><h2>New-account policy</h2></div></div><div class="form-grid"><label>Minimum account age (days)<input type="number" name="minimumAccountAgeDays" min="0" max="365" value="${settings.minimum_account_age_days ?? 0}"><small>Set to 0 to disable account-age screening.</small></label><label>Accounts below minimum<select name="suspiciousAccountAction"><option value="BLOCK" ${selected(settings.suspicious_account_action || "BLOCK", "BLOCK")}>Block verification</option><option value="LOG_ONLY" ${selected(settings.suspicious_account_action, "LOG_ONLY")}>Log only and allow</option></select></label></div></article><article class="panel"><div class="panel-title"><div><p class="eyebrow">Raid protection</p><h2>High-alert enforcement</h2></div><label class="toggle"><input type="checkbox" name="raidProtectionEnabled" ${raidEnabled ? "checked" : ""}><span></span><b>${raidEnabled ? "Enabled" : "Disabled"}</b></label></div><div class="form-grid compact"><label>Join threshold<input type="number" name="joinVelocityThreshold" min="3" max="100" value="${settings.join_velocity_threshold ?? 10}"></label><label>Time window (seconds)<input type="number" name="joinVelocityWindowSeconds" min="10" max="600" value="${settings.join_velocity_window_seconds ?? 60}"></label><label>High-alert duration (minutes)<input type="number" name="highAlertMinutes" min="1" max="120" value="${settings.high_alert_minutes ?? 10}"></label><label>Alert cooldown (minutes)<input type="number" name="raidAlertCooldownMinutes" min="1" max="1440" value="${settings.raid_alert_cooldown_minutes ?? 30}"></label><label>High-alert minimum account age<input type="number" name="highAlertMinimumAccountAgeDays" min="0" max="365" value="${settings.high_alert_minimum_account_age_days ?? 7}"></label><label>High-alert action<select name="highAlertAction"><option value="MONITOR" ${selected(settings.high_alert_action || "MONITOR", "MONITOR")}>Monitor only</option><option value="BLOCK" ${selected(settings.high_alert_action, "BLOCK")}>Block verification</option></select></label><label class="full">Status<input value="${escapeHtml(raidStatus)}" disabled></label><div class="full alert-actions"><button type="submit" name="manualHighAlert" value="enable" class="secondary-button">Enable high alert now</button><button type="submit" name="manualHighAlert" value="disable" class="secondary-button">Disable high alert</button></div></div></article></section>
         <section id="message" class="message-grid"><article class="panel"><div class="panel-title"><div><p class="eyebrow">Content</p><h2>Verification message</h2></div></div><div class="form-grid"><label class="full">Title<input id="messageTitle" name="messageTitle" maxlength="256" value="${escapeHtml(title)}"></label><label class="full">Description<textarea id="messageDescription" name="messageDescription" maxlength="4000" rows="6">${escapeHtml(description)}</textarea></label><label>Accent color<input id="messageColor" name="messageColor" type="color" value="${escapeHtml(color)}"></label><label>Button label<input id="buttonLabel" name="buttonLabel" maxlength="80" value="${escapeHtml(buttonLabel)}"></label><label class="full">Success message<textarea name="successMessage" maxlength="1000" rows="3">${escapeHtml(settings.success_message || "You have been verified successfully.")}</textarea></label></div></article>
         <article class="panel preview-panel"><div class="panel-title"><div><p class="eyebrow">Live preview</p><h2>Discord appearance</h2></div></div><div class="discord-preview"><div class="discord-avatar">S</div><div class="discord-message"><div><strong>Sentinel</strong><span class="bot-tag">APP</span><time>Today at 12:00 PM</time></div><div id="previewEmbed" class="discord-embed" style="border-color:${escapeHtml(color)}"><h3 id="previewTitle">${escapeHtml(title)}</h3><p id="previewDescription">${escapeHtml(description)}</p><small>Powered by SecureBootLabs</small></div><button id="previewButton" type="button" class="discord-button" ${enabled ? "" : "disabled"}>✓ ${escapeHtml(buttonLabel)}</button></div></div></article></section>
         <div class="save-bar"><div><strong>Publish changes</strong><span>Updates settings and replaces the pinned verification message.</span></div><button type="submit">Save and publish</button></div></form>
         <section id="activity" class="panel activity full-activity"><div class="panel-title activity-heading"><div><p class="eyebrow">Audit trail</p><h2>Verification activity</h2></div><form class="filters" method="get"><label>Result<select name="result"><option value="all" ${selected(filters.result, "all")}>All results</option><option value="success" ${selected(filters.result, "success")}>Successful</option><option value="failed" ${selected(filters.result, "failed")}>Failed</option></select></label><label>User ID<input name="userId" inputmode="numeric" value="${escapeHtml(filters.userId)}" placeholder="Search user"></label><button type="submit" class="secondary-button">Filter</button></form></div><div class="table-wrap"><table><thead><tr><th>Result</th><th>User ID</th><th>Reason</th><th>Time</th></tr></thead><tbody>${activityRows}</tbody></table></div></section>
+        <section class="panel activity full-activity security-events"><div class="panel-title"><div><p class="eyebrow">Security timeline</p><h2>Recent high-alert events</h2></div></div><div class="table-wrap"><table><thead><tr><th>Event</th><th>Details</th><th>Time</th></tr></thead><tbody>${securityRows}</tbody></table></div></section>
         <script src="/dashboard.js" defer></script>`;
     }
 

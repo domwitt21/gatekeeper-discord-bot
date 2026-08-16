@@ -65,6 +65,10 @@ class Database {
         await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS join_velocity_window_seconds INTEGER DEFAULT 60");
         await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS high_alert_minutes INTEGER DEFAULT 10");
         await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS high_alert_until BIGINT DEFAULT 0");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS high_alert_action TEXT DEFAULT 'MONITOR'");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS high_alert_minimum_account_age_days INTEGER DEFAULT 7");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS raid_alert_cooldown_minutes INTEGER DEFAULT 30");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS last_raid_alert_at BIGINT DEFAULT 0");
     }
 
     schema(logId, dateType) {
@@ -83,6 +87,8 @@ class Database {
                 raid_protection_enabled INTEGER DEFAULT 0, join_velocity_threshold INTEGER DEFAULT 10,
                 join_velocity_window_seconds INTEGER DEFAULT 60, high_alert_minutes INTEGER DEFAULT 10,
                 high_alert_until BIGINT DEFAULT 0,
+                high_alert_action TEXT DEFAULT 'MONITOR', high_alert_minimum_account_age_days INTEGER DEFAULT 7,
+                raid_alert_cooldown_minutes INTEGER DEFAULT 30, last_raid_alert_at BIGINT DEFAULT 0,
                 created_at ${dateType} DEFAULT CURRENT_TIMESTAMP, updated_at ${dateType} DEFAULT CURRENT_TIMESTAMP
             );
             CREATE TABLE IF NOT EXISTS captchas (
@@ -125,6 +131,9 @@ class Database {
         additions.push(["raid_protection_enabled", "INTEGER DEFAULT 0"], ["join_velocity_threshold", "INTEGER DEFAULT 10"],
             ["join_velocity_window_seconds", "INTEGER DEFAULT 60"], ["high_alert_minutes", "INTEGER DEFAULT 10"],
             ["high_alert_until", "BIGINT DEFAULT 0"]);
+        additions.push(["high_alert_action", "TEXT DEFAULT 'MONITOR'"],
+            ["high_alert_minimum_account_age_days", "INTEGER DEFAULT 7"],
+            ["raid_alert_cooldown_minutes", "INTEGER DEFAULT 30"], ["last_raid_alert_at", "BIGINT DEFAULT 0"]);
         for (const [name, definition] of additions) {
             if (!guildColumns.has(name)) this.db.exec(`ALTER TABLE guild_settings ADD COLUMN ${name} ${definition}`);
         }
