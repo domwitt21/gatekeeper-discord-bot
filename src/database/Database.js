@@ -55,6 +55,8 @@ class Database {
 
     async createPostgresSchema() {
         await this.db.query(this.schema("BIGSERIAL PRIMARY KEY", "TIMESTAMPTZ"));
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS minimum_account_age_days INTEGER DEFAULT 0");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS suspicious_account_action TEXT DEFAULT 'BLOCK'");
     }
 
     schema(logId, dateType) {
@@ -68,7 +70,8 @@ class Database {
                 success_message TEXT DEFAULT 'You have been verified successfully.', captcha_length INTEGER DEFAULT 6,
                 captcha_expiration_minutes INTEGER DEFAULT 5, max_attempts INTEGER DEFAULT 5,
                 cooldown_seconds INTEGER DEFAULT 30, lockout_minutes INTEGER DEFAULT 10,
-                captcha_difficulty TEXT DEFAULT 'MEDIUM', updated_by TEXT,
+                captcha_difficulty TEXT DEFAULT 'MEDIUM', minimum_account_age_days INTEGER DEFAULT 0,
+                suspicious_account_action TEXT DEFAULT 'BLOCK', updated_by TEXT,
                 created_at ${dateType} DEFAULT CURRENT_TIMESTAMP, updated_at ${dateType} DEFAULT CURRENT_TIMESTAMP
             );
             CREATE TABLE IF NOT EXISTS captchas (
@@ -102,7 +105,8 @@ class Database {
             ["success_message", "TEXT DEFAULT 'You have been verified successfully.'"], ["captcha_length", "INTEGER DEFAULT 6"],
             ["captcha_expiration_minutes", "INTEGER DEFAULT 5"], ["max_attempts", "INTEGER DEFAULT 5"],
             ["cooldown_seconds", "INTEGER DEFAULT 30"], ["lockout_minutes", "INTEGER DEFAULT 10"],
-            ["captcha_difficulty", "TEXT DEFAULT 'MEDIUM'"], ["updated_by", "TEXT"]];
+            ["captcha_difficulty", "TEXT DEFAULT 'MEDIUM'"], ["minimum_account_age_days", "INTEGER DEFAULT 0"],
+            ["suspicious_account_action", "TEXT DEFAULT 'BLOCK'"], ["updated_by", "TEXT"]];
         for (const [name, definition] of additions) {
             if (!guildColumns.has(name)) this.db.exec(`ALTER TABLE guild_settings ADD COLUMN ${name} ${definition}`);
         }

@@ -102,6 +102,8 @@ class GuildRepository extends BaseRepository {
                 cooldown_seconds = ?,
                 lockout_minutes = ?,
                 captcha_difficulty = ?,
+                minimum_account_age_days = ?,
+                suspicious_account_action = ?,
                 updated_by = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE guild_id = ?
@@ -119,6 +121,8 @@ class GuildRepository extends BaseRepository {
                 settings.cooldownSeconds,
                 settings.lockoutMinutes,
                 settings.captchaDifficulty,
+                settings.minimumAccountAgeDays,
+                settings.suspiciousAccountAction,
                 settings.updatedBy ?? null,
                 guildId
             ]

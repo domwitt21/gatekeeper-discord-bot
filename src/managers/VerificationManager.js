@@ -42,6 +42,7 @@ const VerificationMessage = require("../ui/VerificationMessage");
 const EmbedFactory = require("../ui/EmbedFactory");
 const CaptchaService =
     require("../services/CaptchaService");
+const AccountRiskService = require("../services/AccountRiskService");
 
 class VerificationManager {
 
@@ -872,6 +873,20 @@ class VerificationManager {
                 return { success: false, reason: "DISABLED" };
             }
 
+            const accountRisk = AccountRiskService.evaluate(member.user, settings);
+            if (accountRisk.suspicious) {
+                const reason = `Discord account is ${accountRisk.ageDays} day(s) old; server minimum is ${accountRisk.minimumDays} day(s).`;
+                if (accountRisk.action === "BLOCK") {
+                    try {
+                        await this.logVerification({ member, success: false, reason });
+                    } catch (error) {
+                        console.error("Unable to log blocked new account", error);
+                    }
+                    return { success: false, reason: "ACCOUNT_TOO_NEW", minimumDays: accountRisk.minimumDays };
+                }
+                await this.logSuspiciousAccount({ member, settings, reason });
+            }
+
             const lockoutKey = this.sessionKey(guildId, member.id);
             const lockedUntil = this.lockouts.get(lockoutKey);
             if (lockedUntil && lockedUntil > Date.now()) {
@@ -1162,6 +1177,13 @@ class VerificationManager {
                     const seconds = Math.max(1, Math.ceil((result.retryAt - Date.now()) / 1000));
                     await options.interaction.reply({
                         content: `Too many failed attempts. Try again in ${seconds} seconds.`,
+                        ephemeral: true
+                    });
+                }
+
+                if (result.reason === "ACCOUNT_TOO_NEW") {
+                    await options.interaction.reply({
+                        content: `Your Discord account must be at least ${result.minimumDays} day(s) old to verify in this server.`,
                         ephemeral: true
                     });
                 }
@@ -1796,7 +1818,7 @@ class VerificationManager {
                 member.guild.id
             );
 
-            this.answerCooldowns.delete(sessionKey);
+            this.answerCooldowns.delete(this.sessionKey(member.guild.id, member.id));
 
             const channelId = settings?.log_channel_id;
 
@@ -1860,6 +1882,19 @@ class VerificationManager {
             });
 
 
+        }
+
+        async logSuspiciousAccount({ member, settings, reason }) {
+            if (!settings?.log_channel_id) return;
+            try {
+                const channel = await member.guild.channels.fetch(settings.log_channel_id);
+                if (!channel) return;
+                await channel.send({
+                    embeds: [EmbedFactory.error("New Account Detected", `${member} was allowed to continue verification.\n${reason}`)]
+                });
+            } catch (error) {
+                console.error("Unable to send new-account alert", error);
+            }
         }
 
         /**
