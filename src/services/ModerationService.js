@@ -1,4 +1,5 @@
 const TrustPolicyService = require("./TrustPolicyService");
+const VerificationPresetService = require("./VerificationPresetService");
 
 class ModerationService {
     static async settings(client, guildId) {
@@ -12,6 +13,8 @@ class ModerationService {
         await client.database.captchas.deleteActive(member.guild.id, member.id);
         client.verificationManager?.resetMemberState(member.guild.id, member.id);
         if (!member.roles.cache.has(settings.verified_role_id)) await member.roles.add(settings.verified_role_id);
+        await client.database.verificationRecords.upsert({ guildId: member.guild.id, userId: member.id,
+            policyVersion: settings.policy_version || 1, method: "MANUAL" });
         await this.audit(client, member.guild.id, "MANUAL_VERIFY", member.id, actorId, note);
         return { changed: true };
     }
@@ -20,6 +23,7 @@ class ModerationService {
         const settings = await this.settings(client, member.guild.id);
         const changed = member.roles.cache.has(settings.verified_role_id);
         if (changed) await member.roles.remove(settings.verified_role_id);
+        await client.database.verificationRecords.remove(member.guild.id, member.id);
         await this.audit(client, member.guild.id, "MANUAL_UNVERIFY", member.id, actorId, note);
         return { changed };
     }
@@ -31,11 +35,22 @@ class ModerationService {
         return { changed: true };
     }
 
+    static async requireReverification(client, member, actorId, note) {
+        const settings = await this.settings(client, member.guild.id);
+        if (member.roles.cache.has(settings.verified_role_id)) await member.roles.remove(settings.verified_role_id);
+        await client.database.verificationRecords.remove(member.guild.id, member.id);
+        await client.database.captchas.deleteActive(member.guild.id, member.id);
+        client.verificationManager?.resetMemberState(member.guild.id, member.id);
+        await this.audit(client, member.guild.id, "REVERIFICATION_REQUIRED", member.id, actorId, note);
+        return { changed: true };
+    }
+
     static async status(client, member) {
         const settings = await this.settings(client, member.guild.id);
         const captcha = await client.database.captchas.findActive(member.guild.id, member.id);
         const policies = await client.database.trustPolicies.listForGuild(member.guild.id);
         const policyDecision = TrustPolicyService.evaluate(member, settings, policies);
+        const verificationRecord = await client.database.verificationRecords.find(member.guild.id, member.id);
         const manager = client.verificationManager;
         const key = manager?.sessionKey(member.guild.id, member.id);
         return {
@@ -44,7 +59,9 @@ class ModerationService {
             lockedUntil: key ? manager.lockouts.get(key) || 0 : 0,
             cooldownUntil: key ? manager.answerCooldowns.get(key) || 0 : 0,
             policyAction: policyDecision.action,
-            policySource: policyDecision.source || null
+            policySource: policyDecision.source || null,
+            verificationRecord,
+            needsReverification: VerificationPresetService.needsReverification(verificationRecord, settings)
         };
     }
 

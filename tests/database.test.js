@@ -92,3 +92,15 @@ test("records report delivery success and failure history", async t => {
     assert.equal(history[0].attempts, 3);
     assert.equal(history[0].error, "Missing permission");
 });
+
+test("persists and replaces member verification versions", async t => {
+    const database = await temporaryDatabase(t);
+    await database.verificationRecords.upsert({ guildId: "guild", userId: "user", verifiedAt: 1000, policyVersion: 1, method: "CAPTCHA" });
+    await database.verificationRecords.upsert({ guildId: "guild", userId: "user", verifiedAt: 2000, policyVersion: 2, method: "MANUAL" });
+    const record = await database.verificationRecords.find("guild", "user");
+    assert.equal(record.verified_at, 2000);
+    assert.equal(record.policy_version, 2);
+    assert.equal(record.method, "MANUAL");
+    await database.verificationRecords.remove("guild", "user");
+    assert.equal(await database.verificationRecords.find("guild", "user"), null);
+});

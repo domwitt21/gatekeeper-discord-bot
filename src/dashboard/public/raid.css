@@ -63,3 +63,22 @@
 }
 
 .confirmation input { width: auto; }
+
+.version-badge {
+    padding: 6px 9px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.policy-preview {
+    display: grid;
+    gap: 6px;
+    padding: 15px;
+    border: 1px solid rgba(124, 108, 255, 0.35);
+    border-radius: 12px;
+    background: rgba(124, 108, 255, 0.07);
+}
+
+.policy-preview span { color: var(--muted); }

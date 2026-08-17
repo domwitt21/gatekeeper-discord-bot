@@ -15,6 +15,8 @@ module.exports = CommandBuilder.create({ category: "admin", cooldown: 2, deferRe
             `Locked: ${status.lockedUntil > Date.now() ? `Until <t:${Math.floor(status.lockedUntil / 1000)}:R>` : "No"}`,
             `Answer cooldown: ${status.cooldownUntil > Date.now() ? `Until <t:${Math.floor(status.cooldownUntil / 1000)}:R>` : "No"}`,
             `Trust policy: ${status.policyAction}${status.policySource ? ` (${status.policySource})` : ""}`];
+        lines.push(`Verification version: ${status.verificationRecord?.policy_version ?? "None"}`,
+            `Reverification required: ${status.needsReverification ? "Yes" : "No"}`);
         return ResponseHandler.info(interaction, `${user}\n${lines.join("\n")}`);
     }
 });

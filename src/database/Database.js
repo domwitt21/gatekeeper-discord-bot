@@ -8,6 +8,7 @@ const LogRepository = require("./repositories/LogRepository");
 const SecurityEventRepository = require("./repositories/SecurityEventRepository");
 const TrustPolicyRepository = require("./repositories/TrustPolicyRepository");
 const ReportDeliveryRepository = require("./repositories/ReportDeliveryRepository");
+const VerificationRecordRepository = require("./repositories/VerificationRecordRepository");
 
 function postgresSql(sql) {
     let index = 0;
@@ -26,6 +27,7 @@ class Database {
         this.securityEvents = null;
         this.trustPolicies = null;
         this.reportDeliveries = null;
+        this.verificationRecords = null;
         this.cleanupTimer = null;
     }
 
@@ -50,6 +52,7 @@ class Database {
         this.securityEvents = new SecurityEventRepository(this);
         this.trustPolicies = new TrustPolicyRepository(this);
         this.reportDeliveries = new ReportDeliveryRepository(this);
+        this.verificationRecords = new VerificationRecordRepository(this);
         await this.cleanup();
         this.cleanupTimer = setInterval(() => this.cleanup().catch(error => console.error("Database cleanup failed", error)), 3600000);
         this.cleanupTimer.unref();
@@ -87,6 +90,10 @@ class Database {
         await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS quiet_hours_end_utc INTEGER DEFAULT 0");
         await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS minimum_alert_severity TEXT DEFAULT 'WARNING'");
         await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS last_report_at BIGINT DEFAULT 0");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS verification_preset TEXT DEFAULT 'STANDARD'");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS strict_minimum_account_age_days INTEGER DEFAULT 7");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS reverify_after_days INTEGER DEFAULT 0");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS policy_version INTEGER DEFAULT 1");
     }
 
     schema(logId, dateType) {
@@ -113,6 +120,8 @@ class Database {
                 report_channel_id TEXT, report_hour_utc INTEGER DEFAULT 12, report_weekday INTEGER DEFAULT 1,
                 quiet_hours_start_utc INTEGER DEFAULT 0, quiet_hours_end_utc INTEGER DEFAULT 0,
                 minimum_alert_severity TEXT DEFAULT 'WARNING', last_report_at BIGINT DEFAULT 0,
+                verification_preset TEXT DEFAULT 'STANDARD', strict_minimum_account_age_days INTEGER DEFAULT 7,
+                reverify_after_days INTEGER DEFAULT 0, policy_version INTEGER DEFAULT 1,
                 created_at ${dateType} DEFAULT CURRENT_TIMESTAMP, updated_at ${dateType} DEFAULT CURRENT_TIMESTAMP
             );
             CREATE TABLE IF NOT EXISTS captchas (
@@ -140,6 +149,10 @@ class Database {
                 channel_id TEXT, success INTEGER NOT NULL, attempts INTEGER DEFAULT 1,
                 error TEXT, timestamp BIGINT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS member_verifications (
+                guild_id TEXT, user_id TEXT, verified_at BIGINT NOT NULL, policy_version INTEGER NOT NULL,
+                method TEXT NOT NULL, PRIMARY KEY(guild_id, user_id)
+            );
             CREATE INDEX IF NOT EXISTS idx_verification_logs_guild_timestamp ON verification_logs(guild_id, timestamp DESC);
             CREATE INDEX IF NOT EXISTS idx_captchas_expires_at ON captchas(expires_at);
             CREATE INDEX IF NOT EXISTS idx_verification_logs_guild_success_timestamp ON verification_logs(guild_id, success, timestamp DESC);
@@ -147,6 +160,7 @@ class Database {
             CREATE INDEX IF NOT EXISTS idx_security_events_guild_timestamp ON security_events(guild_id, timestamp DESC);
             CREATE INDEX IF NOT EXISTS idx_trust_policies_guild ON trust_policies(guild_id, policy);
             CREATE INDEX IF NOT EXISTS idx_report_deliveries_guild_timestamp ON report_deliveries(guild_id, timestamp DESC);
+            CREATE INDEX IF NOT EXISTS idx_member_verifications_guild_version ON member_verifications(guild_id, policy_version);
         `;
     }
 
@@ -176,6 +190,8 @@ class Database {
             ["report_channel_id", "TEXT"], ["report_hour_utc", "INTEGER DEFAULT 12"], ["report_weekday", "INTEGER DEFAULT 1"],
             ["quiet_hours_start_utc", "INTEGER DEFAULT 0"], ["quiet_hours_end_utc", "INTEGER DEFAULT 0"],
             ["minimum_alert_severity", "TEXT DEFAULT 'WARNING'"], ["last_report_at", "BIGINT DEFAULT 0"]);
+        additions.push(["verification_preset", "TEXT DEFAULT 'STANDARD'"], ["strict_minimum_account_age_days", "INTEGER DEFAULT 7"],
+            ["reverify_after_days", "INTEGER DEFAULT 0"], ["policy_version", "INTEGER DEFAULT 1"]);
         for (const [name, definition] of additions) {
             if (!guildColumns.has(name)) this.db.exec(`ALTER TABLE guild_settings ADD COLUMN ${name} ${definition}`);
         }

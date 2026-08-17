@@ -15,7 +15,8 @@ function fixture(options = {}) {
         guilds: { getSettings: async () => ({ verified_role_id: "verified", remove_verified_role_on_deny: options.autoRemove ? 1 : 0 }) },
         captchas: { findActive: async () => options.challenge ? {} : null, deleteActive: async () => {} },
         securityEvents: { record: async event => events.push(event) },
-        trustPolicies: { listForGuild: async () => [] }
+        trustPolicies: { listForGuild: async () => [] },
+        verificationRecords: { upsert: async () => {}, remove: async () => {}, find: async () => null }
     }, verificationManager: options.manager };
     return { client, member, events, removed, added };
 }
@@ -56,4 +57,14 @@ test("enabled deny role removal revokes verification", async () => {
     assert.equal(await ModerationService.revokeIfDenied(value.client, value.member.guild, "user", "admin"), true);
     assert.deepEqual(value.removed, ["verified"]);
     assert.equal(value.events[0].type, "DENY_AUTO_UNVERIFY");
+});
+
+test("reverification removes the role and invalidates the version record", async () => {
+    const value = fixture({ verified: true });
+    let removedRecord = false;
+    value.client.database.verificationRecords.remove = async () => { removedRecord = true; };
+    await ModerationService.requireReverification(value.client, value.member, "admin", "policy changed");
+    assert.deepEqual(value.removed, ["verified"]);
+    assert.equal(removedRecord, true);
+    assert.equal(value.events[0].type, "REVERIFICATION_REQUIRED");
 });

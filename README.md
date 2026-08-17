@@ -16,6 +16,18 @@ npm run deploy
 
 Administrators can inspect and recover member verification with `/verification-status`, `/verify-user`, `/unverify`, and `/reset-verification`, or use the dashboard member lookup. Role removal and state resets require explicit confirmation, and moderator notes are written to the security audit timeline. Automatic verified-role removal for newly denied users is available but disabled by default.
 
+## Verification presets and reverification
+
+Each server can choose a verification preset from the dashboard:
+
+- **Basic** disables the minimum account-age gate, logs suspicious accounts, and uses an easy CAPTCHA.
+- **Standard** preserves the server's individually configured verification settings and is the default for existing servers.
+- **Strict** blocks suspicious accounts, uses a hard CAPTCHA with no more than three attempts, and enforces the configured strict minimum account age.
+
+Changes to enforcement-related verification settings increment the server's policy version. Gatekeeper records the policy version each member completed and shows administrators when that verification is out of date. The optional reverification interval tracks time-based expiration; set it to `0` to disable it.
+
+Use `/reverify-user` or the dashboard's **Require reverification** action to remove one member's verified role and invalidate their prior verification. The action requires explicit confirmation and is written to the security audit timeline. Bulk reverification is intentionally not enabled in this phase.
+
 ## Security reports
 
 Use `/security-report` to preview a daily or weekly security summary or deliver it to the configured report channel. The dashboard can enable scheduled daily or weekly delivery, select a UTC delivery time, configure quiet hours and alert severity, and review delivery attempts and failures. Scheduled reports are disabled by default. Discord delivery is retried up to three times before a failure is recorded.

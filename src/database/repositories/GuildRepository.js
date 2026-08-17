@@ -122,6 +122,9 @@ class GuildRepository extends BaseRepository {
                 quiet_hours_start_utc = ?,
                 quiet_hours_end_utc = ?,
                 minimum_alert_severity = ?,
+                verification_preset = ?,
+                strict_minimum_account_age_days = ?,
+                reverify_after_days = ?,
                 updated_by = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE guild_id = ?
@@ -159,6 +162,9 @@ class GuildRepository extends BaseRepository {
                 settings.quietHoursStartUtc,
                 settings.quietHoursEndUtc,
                 settings.minimumAlertSeverity,
+                settings.verificationPreset,
+                settings.strictMinimumAccountAgeDays,
+                settings.reverifyAfterDays,
                 settings.updatedBy ?? null,
                 guildId
             ]
@@ -179,6 +185,11 @@ class GuildRepository extends BaseRepository {
     setLastReportAt(guildId, timestamp) {
         this.ensureConnected();
         return this.run("UPDATE guild_settings SET last_report_at = ? WHERE guild_id = ?", [timestamp, guildId]);
+    }
+
+    incrementPolicyVersion(guildId) {
+        this.ensureConnected();
+        return this.run("UPDATE guild_settings SET policy_version = policy_version + 1, updated_at = CURRENT_TIMESTAMP WHERE guild_id = ?", [guildId]);
     }
 
     /**

@@ -44,6 +44,7 @@ const CaptchaService =
     require("../services/CaptchaService");
 const AccountRiskService = require("../services/AccountRiskService");
 const TrustPolicyService = require("../services/TrustPolicyService");
+const VerificationPresetService = require("../services/VerificationPresetService");
 
 class VerificationManager {
 
@@ -865,13 +866,18 @@ class VerificationManager {
 
             }
 
-            const settings = await VerificationManager.loadExistingConfiguration(
+            const storedSettings = await VerificationManager.loadExistingConfiguration(
                 this.client,
                 guildId
             );
 
-            if (!settings || settings.verification_enabled === 0) {
+            if (!storedSettings || storedSettings.verification_enabled === 0) {
                 return { success: false, reason: "DISABLED" };
+            }
+            const settings = VerificationPresetService.resolve(storedSettings);
+            const verificationRecord = await this.client.database.verificationRecords.find(guildId, member.id);
+            if (member.roles.cache.has(settings.verified_role_id) && !VerificationPresetService.needsReverification(verificationRecord, settings)) {
+                return { success: false, reason: "ALREADY_VERIFIED" };
             }
 
             const policies = await this.client.database.trustPolicies.listForGuild(guildId);
@@ -886,6 +892,8 @@ class VerificationManager {
                 await this.assignVerifiedRole(member);
                 await this.client.database.securityEvents.record({ guildId, type: "TRUST_POLICY_BYPASS",
                     details: `${member.id}: ${trustDecision.source}` });
+                await this.client.database.verificationRecords.upsert({ guildId, userId: member.id,
+                    policyVersion: settings.policy_version, method: `TRUST_${trustDecision.source}` });
                 try { await this.logVerification({ member, success: true }); } catch (error) { console.error("Unable to log trusted bypass", error); }
                 return { success: true, bypass: true, source: trustDecision.source };
             }
@@ -1214,6 +1222,10 @@ class VerificationManager {
 
                 if (result.reason === "POLICY_DENIED") {
                     await options.interaction.reply({ content: "Verification is unavailable for this account. Contact a server administrator if you believe this is an error.", ephemeral: true });
+                }
+
+                if (result.reason === "ALREADY_VERIFIED") {
+                    await options.interaction.reply({ content: "You are already verified and your verification is current.", ephemeral: true });
                 }
 
                 return result;
@@ -1726,6 +1738,10 @@ class VerificationManager {
 
             });
 
+            const settings = await VerificationManager.loadExistingConfiguration(this.client, member.guild.id);
+            await this.client.database.verificationRecords.upsert({ guildId: member.guild.id, userId: member.id,
+                policyVersion: settings?.policy_version || 1, method: "CAPTCHA" });
+
             /**
              * Send response
              */
@@ -1743,8 +1759,6 @@ class VerificationManager {
                     ],
                 ephemeral: true
             });
-
-
 
             return {
 
