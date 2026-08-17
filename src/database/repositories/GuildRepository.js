@@ -219,6 +219,22 @@ class GuildRepository extends BaseRepository {
         return this.run("UPDATE guild_settings SET last_health_score = ?, last_health_checked_at = ? WHERE guild_id = ?", [score, timestamp, guildId]);
     }
 
+    updateOnboardingSettings(guildId, settings) {
+        this.ensureConnected();
+        return this.run(`UPDATE guild_settings SET onboarding_enabled = ?, onboarding_delivery_mode = ?,
+            onboarding_channel_id = ?, onboarding_welcome_title = ?, onboarding_welcome_message = ?,
+            onboarding_rules_text = ?, onboarding_links_json = ?, onboarding_require_acknowledgement = ?,
+            onboarding_acknowledgement_text = ?, onboarding_secondary_role_id = ?, onboarding_include_trusted = ?,
+            onboarding_include_manual = ?, onboarding_followup_enabled = ?, onboarding_followup_delay_minutes = ?,
+            onboarding_followup_message = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE guild_id = ?`, [
+            settings.enabled ? 1 : 0, settings.deliveryMode, settings.channelId, settings.welcomeTitle,
+            settings.welcomeMessage, settings.rulesText, JSON.stringify(settings.links), settings.requireAcknowledgement ? 1 : 0,
+            settings.acknowledgementText, settings.secondaryRoleId, settings.includeTrusted ? 1 : 0,
+            settings.includeManual ? 1 : 0, settings.followupEnabled ? 1 : 0, settings.followupDelayMinutes,
+            settings.followupMessage, settings.updatedBy, guildId
+        ]);
+    }
+
     setLastHealthAlertAt(guildId, timestamp = Date.now()) {
         this.ensureConnected();
         return this.run("UPDATE guild_settings SET last_health_alert_at = ? WHERE guild_id = ?", [timestamp, guildId]);

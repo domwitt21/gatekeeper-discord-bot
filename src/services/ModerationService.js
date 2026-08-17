@@ -17,6 +17,7 @@ class ModerationService {
             policyVersion: settings.policy_version || 1, method: "MANUAL" });
         await client.database.reverifications.remove(member.guild.id, member.id);
         await this.audit(client, member.guild.id, "MANUAL_VERIFY", member.id, actorId, note);
+        await client.onboardingService?.deliver(member, "MANUAL").catch(error => console.error("Manual onboarding failed", error));
         return { changed: true };
     }
 

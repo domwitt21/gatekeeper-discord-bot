@@ -10,6 +10,7 @@ const TrustPolicyRepository = require("./repositories/TrustPolicyRepository");
 const ReportDeliveryRepository = require("./repositories/ReportDeliveryRepository");
 const VerificationRecordRepository = require("./repositories/VerificationRecordRepository");
 const ReverificationRepository = require("./repositories/ReverificationRepository");
+const OnboardingDeliveryRepository = require("./repositories/OnboardingDeliveryRepository");
 
 function postgresSql(sql) {
     let index = 0;
@@ -30,6 +31,7 @@ class Database {
         this.reportDeliveries = null;
         this.verificationRecords = null;
         this.reverifications = null;
+        this.onboardingDeliveries = null;
         this.cleanupTimer = null;
     }
 
@@ -56,6 +58,7 @@ class Database {
         this.reportDeliveries = new ReportDeliveryRepository(this);
         this.verificationRecords = new VerificationRecordRepository(this);
         this.reverifications = new ReverificationRepository(this);
+        this.onboardingDeliveries = new OnboardingDeliveryRepository(this);
         await this.cleanup();
         this.cleanupTimer = setInterval(() => this.cleanup().catch(error => console.error("Database cleanup failed", error)), 3600000);
         this.cleanupTimer.unref();
@@ -108,6 +111,21 @@ class Database {
         await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS last_health_score INTEGER");
         await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS last_health_checked_at BIGINT DEFAULT 0");
         await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS last_health_alert_at BIGINT DEFAULT 0");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS onboarding_enabled INTEGER DEFAULT 0");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS onboarding_delivery_mode TEXT DEFAULT 'DM'");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS onboarding_channel_id TEXT");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS onboarding_welcome_title TEXT DEFAULT 'Welcome to the server'");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS onboarding_welcome_message TEXT DEFAULT 'Welcome, {user}! You are now verified in {server}.'");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS onboarding_rules_text TEXT");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS onboarding_links_json TEXT DEFAULT '[]'");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS onboarding_require_acknowledgement INTEGER DEFAULT 0");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS onboarding_acknowledgement_text TEXT DEFAULT 'I understand'");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS onboarding_secondary_role_id TEXT");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS onboarding_include_trusted INTEGER DEFAULT 1");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS onboarding_include_manual INTEGER DEFAULT 1");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS onboarding_followup_enabled INTEGER DEFAULT 0");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS onboarding_followup_delay_minutes INTEGER DEFAULT 60");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS onboarding_followup_message TEXT DEFAULT 'Need help getting started? Review the server resources or contact a moderator.'");
     }
 
     schema(logId, dateType) {
@@ -141,6 +159,14 @@ class Database {
                 reverification_notify_dm INTEGER DEFAULT 1, reverification_channel_id TEXT,
                 setup_completed_at BIGINT DEFAULT 0, setup_completed_by TEXT, last_health_score INTEGER,
                 last_health_checked_at BIGINT DEFAULT 0, last_health_alert_at BIGINT DEFAULT 0,
+                onboarding_enabled INTEGER DEFAULT 0, onboarding_delivery_mode TEXT DEFAULT 'DM', onboarding_channel_id TEXT,
+                onboarding_welcome_title TEXT DEFAULT 'Welcome to the server',
+                onboarding_welcome_message TEXT DEFAULT 'Welcome, {user}! You are now verified in {server}.',
+                onboarding_rules_text TEXT, onboarding_links_json TEXT DEFAULT '[]', onboarding_require_acknowledgement INTEGER DEFAULT 0,
+                onboarding_acknowledgement_text TEXT DEFAULT 'I understand', onboarding_secondary_role_id TEXT,
+                onboarding_include_trusted INTEGER DEFAULT 1, onboarding_include_manual INTEGER DEFAULT 1,
+                onboarding_followup_enabled INTEGER DEFAULT 0, onboarding_followup_delay_minutes INTEGER DEFAULT 60,
+                onboarding_followup_message TEXT DEFAULT 'Need help getting started? Review the server resources or contact a moderator.',
                 created_at ${dateType} DEFAULT CURRENT_TIMESTAMP, updated_at ${dateType} DEFAULT CURRENT_TIMESTAMP
             );
             CREATE TABLE IF NOT EXISTS captchas (
@@ -178,6 +204,11 @@ class Database {
                 reminder_count INTEGER DEFAULT 0, enforced_at BIGINT DEFAULT 0,
                 PRIMARY KEY(guild_id, user_id)
             );
+            CREATE TABLE IF NOT EXISTS onboarding_deliveries (
+                delivery_id TEXT PRIMARY KEY, guild_id TEXT NOT NULL, user_id TEXT NOT NULL, trigger_type TEXT NOT NULL,
+                destinations TEXT, status TEXT NOT NULL, error TEXT, created_at BIGINT NOT NULL,
+                acknowledged_at BIGINT DEFAULT 0, followup_due_at BIGINT DEFAULT 0, followup_sent_at BIGINT DEFAULT 0
+            );
             CREATE INDEX IF NOT EXISTS idx_verification_logs_guild_timestamp ON verification_logs(guild_id, timestamp DESC);
             CREATE INDEX IF NOT EXISTS idx_captchas_expires_at ON captchas(expires_at);
             CREATE INDEX IF NOT EXISTS idx_verification_logs_guild_success_timestamp ON verification_logs(guild_id, success, timestamp DESC);
@@ -187,6 +218,8 @@ class Database {
             CREATE INDEX IF NOT EXISTS idx_report_deliveries_guild_timestamp ON report_deliveries(guild_id, timestamp DESC);
             CREATE INDEX IF NOT EXISTS idx_member_verifications_guild_version ON member_verifications(guild_id, policy_version);
             CREATE INDEX IF NOT EXISTS idx_pending_reverifications_guild_due ON pending_reverifications(guild_id, status, due_at);
+            CREATE INDEX IF NOT EXISTS idx_onboarding_deliveries_guild_created ON onboarding_deliveries(guild_id, created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_onboarding_deliveries_followup_due ON onboarding_deliveries(followup_due_at, followup_sent_at);
         `;
     }
 
@@ -224,6 +257,15 @@ class Database {
         additions.push(["setup_completed_at", "BIGINT DEFAULT 0"], ["setup_completed_by", "TEXT"],
             ["last_health_score", "INTEGER"], ["last_health_checked_at", "BIGINT DEFAULT 0"],
             ["last_health_alert_at", "BIGINT DEFAULT 0"]);
+        additions.push(["onboarding_enabled", "INTEGER DEFAULT 0"], ["onboarding_delivery_mode", "TEXT DEFAULT 'DM'"],
+            ["onboarding_channel_id", "TEXT"], ["onboarding_welcome_title", "TEXT DEFAULT 'Welcome to the server'"],
+            ["onboarding_welcome_message", "TEXT DEFAULT 'Welcome, {user}! You are now verified in {server}.'"],
+            ["onboarding_rules_text", "TEXT"], ["onboarding_links_json", "TEXT DEFAULT '[]'"],
+            ["onboarding_require_acknowledgement", "INTEGER DEFAULT 0"], ["onboarding_acknowledgement_text", "TEXT DEFAULT 'I understand'"],
+            ["onboarding_secondary_role_id", "TEXT"], ["onboarding_include_trusted", "INTEGER DEFAULT 1"],
+            ["onboarding_include_manual", "INTEGER DEFAULT 1"], ["onboarding_followup_enabled", "INTEGER DEFAULT 0"],
+            ["onboarding_followup_delay_minutes", "INTEGER DEFAULT 60"],
+            ["onboarding_followup_message", "TEXT DEFAULT 'Need help getting started? Review the server resources or contact a moderator.'"]);
         for (const [name, definition] of additions) {
             if (!guildColumns.has(name)) this.db.exec(`ALTER TABLE guild_settings ADD COLUMN ${name} ${definition}`);
         }

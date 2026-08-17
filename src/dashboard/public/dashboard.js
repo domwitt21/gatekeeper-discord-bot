@@ -31,7 +31,7 @@ const tabList = document.getElementById("dashboardTabs");
 const tabButtons = Array.from(document.querySelectorAll("[data-dashboard-tab]"));
 const tabPanels = Array.from(document.querySelectorAll("[data-dashboard-panel]"));
 const hashTabs = { overview: "overview", configuration: "settings", reports: "settings", message: "settings",
-    reverification: "reverification", policies: "policies", moderation: "moderation", activity: "activity" };
+    reverification: "reverification", onboarding: "onboarding", policies: "policies", moderation: "moderation", activity: "activity" };
 
 function setMenu(open) {
     if (!menuButton || !tabList) return;
@@ -129,4 +129,15 @@ if (wizard) {
         }
     });
     showStep(0);
+}
+
+const onboardingPreviewBindings = [
+    ["onboardingWelcomeTitle", "onboardingPreviewTitle"],
+    ["onboardingWelcomeMessage", "onboardingPreviewMessage"],
+    ["onboardingRulesText", "onboardingPreviewRules"]
+];
+for (const [inputId, previewId] of onboardingPreviewBindings) {
+    const input = document.getElementById(inputId);
+    const preview = document.getElementById(previewId);
+    if (input && preview) input.addEventListener("input", () => { preview.textContent = input.value; });
 }

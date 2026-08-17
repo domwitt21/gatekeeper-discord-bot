@@ -154,6 +154,7 @@ async function shutdown(signal) {
         client.securityReportService?.stop();
         client.reverificationService?.stop();
         client.configurationHealthService?.stop();
+        client.onboardingService?.stop();
 
         if (client.database) {
 

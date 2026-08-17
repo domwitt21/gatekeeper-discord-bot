@@ -1235,6 +1235,15 @@ class VerificationManager {
             }
 
 
+            if (result.bypass) {
+                await options.interaction.reply({ embeds: [EmbedFactory.success("Verification Complete",
+                    "You matched a trusted server policy and were verified automatically.")], ephemeral: true });
+                await this.client.onboardingService?.deliver(options.member, `TRUST_${result.source}`)
+                    .catch(error => console.error("Trusted onboarding failed", error));
+                return result;
+            }
+
+
 
             await this.sendCaptchaChallenge({
 
@@ -1420,11 +1429,6 @@ class VerificationManager {
                 });
 
 
-            }
-
-            if (result.bypass) {
-                await options.interaction.reply({ embeds: [EmbedFactory.success("Verification Complete", "You matched a trusted server policy and were verified automatically.")], ephemeral: true });
-                return result;
             }
 
             const sessionKey = this.sessionKey(interaction.guild.id, userId);
@@ -1761,6 +1765,9 @@ class VerificationManager {
                     ],
                 ephemeral: true
             });
+
+            await this.client.onboardingService?.deliver(member, "CAPTCHA")
+                .catch(error => console.error("Onboarding delivery failed", error));
 
             return {
 

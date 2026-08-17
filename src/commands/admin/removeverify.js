@@ -22,6 +22,7 @@ module.exports = CommandBuilder.create({
         await client.database.run("DELETE FROM report_deliveries WHERE guild_id = ?", [interaction.guild.id]);
         await client.database.run("DELETE FROM member_verifications WHERE guild_id = ?", [interaction.guild.id]);
         await client.database.run("DELETE FROM pending_reverifications WHERE guild_id = ?", [interaction.guild.id]);
+        await client.database.run("DELETE FROM onboarding_deliveries WHERE guild_id = ?", [interaction.guild.id]);
         return ResponseHandler.success(interaction, "Verification configuration and active challenges were removed.");
     }
 });

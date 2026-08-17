@@ -78,6 +78,12 @@ The dashboard includes a four-step setup wizard for selecting the verification c
 
 Gatekeeper continuously scores configuration health by checking channel availability, role availability, bot permissions, role hierarchy, embed support, and CAPTCHA attachment access. Administrators can run a safe dashboard test that changes no member roles or verification records. Health regressions are checked at startup and every six hours, with rate-limited warnings recorded in the security timeline.
 
+## Post-verification onboarding
+
+Onboarding is disabled by default and can be configured from its dashboard tab. Successful CAPTCHA, trusted-policy, and manual verifications can deliver a custom welcome by DM, server channel, or both. Messages support `{user}` and `{server}` placeholders, rules and first steps, and up to four HTTPS resource buttons.
+
+Administrators may require an acknowledgment before assigning an additional role, schedule a delayed follow-up, preview the Discord experience, and run a safe validation that sends nothing and changes no roles. Delivery, acknowledgment, follow-up, partial-success, and failure state is stored durably and shown in onboarding history. Onboarding failures never reverse a successful verification.
+
 ## Validation
 
 ```sh

@@ -271,3 +271,19 @@
     .preset-cards label > span { min-height: 120px; }
     .launch-review { grid-template-columns: 1fr; }
 }
+
+.onboarding-layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(300px, .75fr); gap: 18px; }
+.onboarding-editor { min-width: 0; }
+.onboarding-actions { display: flex; justify-content: end; margin-top: 22px; }
+.onboarding-preview-panel { align-self: start; position: sticky; top: 170px; }
+.onboarding-preview-panel > form { margin: 16px 0 7px; }
+.onboarding-preview-panel > small { color: var(--muted); }
+.onboarding-preview-panel .discord-preview { min-height: 300px; }
+.preview-rules { white-space: pre-wrap; margin: 10px 0; padding: 10px; border-left: 2px solid var(--accent); color: #b9bec8; font-size: 12px; }
+.preview-rules:empty { display: none; }
+.onboarding-history { margin-top: 18px; }
+
+@media (max-width: 900px) {
+    .onboarding-layout { grid-template-columns: 1fr; }
+    .onboarding-preview-panel { position: static; }
+}

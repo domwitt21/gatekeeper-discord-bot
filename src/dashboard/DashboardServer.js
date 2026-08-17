@@ -7,6 +7,7 @@ const VerificationManager = require("../managers/VerificationManager");
 const SQLiteSessionStore = require("./SQLiteSessionStore");
 const ModerationService = require("../services/ModerationService");
 const ConfigurationHealthService = require("../services/ConfigurationHealthService");
+const OnboardingService = require("../services/OnboardingService");
 
 const MANAGE_GUILD = 0x20n;
 const ADMINISTRATOR = 0x8n;
@@ -21,7 +22,7 @@ function layout(title, user, content) {
     const account = user
         ? `<div class="account"><span>${escapeHtml(user.username)}</span><a href="/logout">Sign out</a></div>`
         : "";
-    return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)} · Gatekeeper</title><link rel="icon" type="image/png" href="/securebootlabs-logo.png"><link rel="stylesheet" href="/styles.css"><link rel="stylesheet" href="/navigation.css"><link rel="stylesheet" href="/brand.css"><link rel="stylesheet" href="/raid.css"></head><body><header><a class="brand" href="/"><img class="brand-logo" src="/securebootlabs-logo.png" alt="SecureBootLabs"><span>Gatekeeper</span></a><nav class="header-nav" aria-label="Primary navigation"><a class="store-link" href="https://securebootlabs.com" target="_blank" rel="noopener noreferrer">SecureBootLabs Store <span aria-hidden="true">↗</span></a>${account}</nav></header><main>${content}</main></body></html>`;
+    return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)} · Gatekeeper</title><link rel="icon" type="image/png" href="/gatekeeper-favicon.png"><link rel="apple-touch-icon" href="/gatekeeper-logo.png"><link rel="stylesheet" href="/styles.css"><link rel="stylesheet" href="/navigation.css"><link rel="stylesheet" href="/brand.css"><link rel="stylesheet" href="/raid.css"></head><body><header><a class="brand" href="/"><img class="brand-logo" src="/gatekeeper-logo.png" alt="Gatekeeper"><span>Gatekeeper</span></a><nav class="header-nav" aria-label="Primary navigation"><a class="store-link" href="https://securebootlabs.com" target="_blank" rel="noopener noreferrer">SecureBootLabs Store <span aria-hidden="true">↗</span></a>${account}</nav></header><main>${content}</main></body></html>`;
 }
 
 class DashboardServer {
@@ -137,6 +138,25 @@ class DashboardServer {
                 await this.client.database.securityEvents.record({ guildId: request.dashboardGuild.id, type: "CONFIGURATION_TEST_RUN",
                     details: `${result.passed ? "Passed" : "Failed"}; score ${result.health.score}; by ${request.session.user.id}` });
                 response.redirect(`/guild/${request.dashboardGuild.id}?test=${result.passed ? "passed" : "failed"}&issues=${result.health.issues.length}#overview`);
+            } catch (error) { next(error); }
+        });
+        this.app.post("/guild/:guildId/onboarding", this.requireGuild.bind(this), this.requireCsrf.bind(this), async (request, response, next) => {
+            try {
+                const settings = this.parseOnboardingSettings(request.body, request.session.user.id);
+                await this.client.database.guilds.updateOnboardingSettings(request.dashboardGuild.id, settings);
+                await this.client.database.securityEvents.record({ guildId: request.dashboardGuild.id, type: "ONBOARDING_SETTINGS_UPDATED",
+                    details: `${settings.enabled ? "Enabled" : "Disabled"}; ${settings.deliveryMode}; by ${request.session.user.id}` });
+                response.redirect(`/guild/${request.dashboardGuild.id}?onboardingSaved=1#onboarding`);
+            } catch (error) { next(error); }
+        });
+        this.app.post("/guild/:guildId/onboarding-test", this.requireGuild.bind(this), this.requireCsrf.bind(this), async (request, response, next) => {
+            try {
+                const settings = await this.client.database.guilds.getSettings(request.dashboardGuild.id) || {};
+                const service = this.client.onboardingService || new OnboardingService(this.client);
+                const result = await service.test(request.dashboardGuild, settings);
+                await this.client.database.securityEvents.record({ guildId: request.dashboardGuild.id, type: "ONBOARDING_TEST_RUN",
+                    details: `${result.passed ? "Passed" : "Failed"}; ${result.issues.join("; ") || "No issues"}; by ${request.session.user.id}` });
+                response.redirect(`/guild/${request.dashboardGuild.id}?onboardingTest=${result.passed ? "passed" : "failed"}#onboarding`);
             } catch (error) { next(error); }
         });
         this.app.post("/guild/:guildId/settings", this.requireGuild.bind(this), this.requireCsrf.bind(this), async (request, response, next) => {
@@ -350,6 +370,26 @@ class DashboardServer {
         };
     }
 
+    parseOnboardingSettings(body, userId) {
+        const text = (value, maximum, fallback = "") => String(value || fallback).trim().slice(0, maximum);
+        const links = [1, 2, 3, 4].map(index => ({ label: text(body[`linkLabel${index}`], 80), url: text(body[`linkUrl${index}`], 500) }))
+            .filter(link => link.label && /^https:\/\//i.test(link.url));
+        return { enabled: body.onboardingEnabled === "on",
+            deliveryMode: ["DM", "CHANNEL", "BOTH"].includes(body.onboardingDeliveryMode) ? body.onboardingDeliveryMode : "DM",
+            channelId: String(body.onboardingChannelId || "").replace(/[^0-9]/g, "").slice(0, 20) || null,
+            welcomeTitle: text(body.onboardingWelcomeTitle, 256, "Welcome to the server"),
+            welcomeMessage: text(body.onboardingWelcomeMessage, 4000, "Welcome, {user}! You are now verified in {server}."),
+            rulesText: text(body.onboardingRulesText, 1024), links,
+            requireAcknowledgement: body.onboardingRequireAcknowledgement === "on",
+            acknowledgementText: text(body.onboardingAcknowledgementText, 80, "I understand"),
+            secondaryRoleId: String(body.onboardingSecondaryRoleId || "").replace(/[^0-9]/g, "").slice(0, 20) || null,
+            includeTrusted: body.onboardingIncludeTrusted === "on", includeManual: body.onboardingIncludeManual === "on",
+            followupEnabled: body.onboardingFollowupEnabled === "on",
+            followupDelayMinutes: Math.min(Math.max(Number.parseInt(body.onboardingFollowupDelayMinutes, 10) || 60, 1), 10080),
+            followupMessage: text(body.onboardingFollowupMessage, 4000, "Need help getting started? Review the server resources or contact a moderator."),
+            updatedBy: userId };
+    }
+
     policyChanged(previous = {}, next) {
         const comparisons = [
             [previous.verification_preset || "STANDARD", next.verificationPreset],
@@ -372,7 +412,7 @@ class DashboardServer {
     }
 
     async overview(guildId, filters = {}) {
-        const [successes, failures, recent, settings, daily, failureReasons, securityEvents, trustPolicies, reportDeliveries, reverifications] = await Promise.all([
+        const [successes, failures, recent, settings, daily, failureReasons, securityEvents, trustPolicies, reportDeliveries, reverifications, onboardingDeliveries] = await Promise.all([
             this.client.database.logs.getSuccessCount(guildId),
             this.client.database.logs.getFailureCount(guildId),
             this.client.database.logs.search(guildId, filters),
@@ -382,7 +422,8 @@ class DashboardServer {
             this.client.database.securityEvents.recent(guildId, 10),
             this.client.database.trustPolicies.listForGuild(guildId),
             this.client.database.reportDeliveries.recent(guildId, 10),
-            this.client.database.reverifications.listForGuild(guildId, 100)
+            this.client.database.reverifications.listForGuild(guildId, 100),
+            this.client.database.onboardingDeliveries.recent(guildId, 20)
         ]);
         const total = successes + failures;
         return {
@@ -398,7 +439,8 @@ class DashboardServer {
             securityEvents,
             trustPolicies,
             reportDeliveries,
-            reverifications
+            reverifications,
+            onboardingDeliveries
         };
     }
 
@@ -452,6 +494,9 @@ class DashboardServer {
         const reverificationChannelOptions = `<option value="">DM only</option>${guild.channels.cache
             .filter(channel => channel.isTextBased() && !channel.isThread())
             .map(channel => `<option value="${channel.id}" ${selected(settings.reverification_channel_id, channel.id)}># ${escapeHtml(channel.name)}</option>`).join("")}`;
+        const onboardingChannelOptions = `<option value="">Select a channel</option>${guild.channels.cache
+            .filter(channel => channel.isTextBased() && !channel.isThread())
+            .map(channel => `<option value="${channel.id}" ${selected(settings.onboarding_channel_id, channel.id)}># ${escapeHtml(channel.name)}</option>`).join("")}`;
         const roleOptions = guild.roles.cache
             .filter(role => role.id !== guild.id && !role.managed)
             .sort((a, b) => b.position - a.position)
@@ -459,6 +504,9 @@ class DashboardServer {
         const trustRoleOptions = guild.roles.cache.filter(role => role.id !== guild.id && !role.managed)
             .sort((a, b) => b.position - a.position)
             .map(role => `<option value="${role.id}">${escapeHtml(role.name)}</option>`).join("");
+        const onboardingRoleOptions = `<option value="">No additional role</option>${guild.roles.cache.filter(role => role.id !== guild.id && !role.managed)
+            .sort((a, b) => b.position - a.position)
+            .map(role => `<option value="${role.id}" ${selected(settings.onboarding_secondary_role_id, role.id)}>${escapeHtml(role.name)}</option>`).join("")}`;
         const memberId = String(request.query.memberId || "").replace(/[^0-9]/g, "").slice(0, 20);
         const moderationMember = memberId ? await guild.members.fetch(memberId).catch(() => null) : null;
         const moderationStatus = moderationMember ? await ModerationService.status(this.client, moderationMember) : null;
@@ -484,7 +532,7 @@ class DashboardServer {
         const description = settings.message_description || "Complete the CAPTCHA below to gain access to the server.";
         const color = settings.message_color || "#5865F2";
         const buttonLabel = settings.button_label || "Verify";
-        const notice = request.query.setupComplete ? '<div class="notice">Setup complete. Gatekeeper is configured and the verification message is live.</div>' : request.query.test === "passed" ? '<div class="notice">Configuration test passed. No member roles or data were changed.</div>' : request.query.test === "failed" ? `<div class="notice warning">Configuration test found ${Number(request.query.issues) || 1} issue(s). Review the health panel below.</div>` : request.query.saved ? '<div class="notice">Settings saved and the verification message was republished.</div>' : request.query.policySaved ? '<div class="notice">Trust policy saved.</div>' : request.query.moderated ? '<div class="notice">Moderation action completed.</div>' : request.query.reverificationUpdated ? '<div class="notice">Reverification queue updated.</div>' : "";
+        const notice = request.query.onboardingSaved ? '<div class="notice">Onboarding settings saved.</div>' : request.query.onboardingTest === "passed" ? '<div class="notice">Onboarding test passed without sending messages or changing roles.</div>' : request.query.onboardingTest === "failed" ? '<div class="notice warning">Onboarding test found an issue. Review the selected channel, role, and message.</div>' : request.query.setupComplete ? '<div class="notice">Setup complete. Gatekeeper is configured and the verification message is live.</div>' : request.query.test === "passed" ? '<div class="notice">Configuration test passed. No member roles or data were changed.</div>' : request.query.test === "failed" ? `<div class="notice warning">Configuration test found ${Number(request.query.issues) || 1} issue(s). Review the health panel below.</div>` : request.query.saved ? '<div class="notice">Settings saved and the verification message was republished.</div>' : request.query.policySaved ? '<div class="notice">Trust policy saved.</div>' : request.query.moderated ? '<div class="notice">Moderation action completed.</div>' : request.query.reverificationUpdated ? '<div class="notice">Reverification queue updated.</div>' : "";
         const raidEnabled = settings.raid_protection_enabled === 1;
         const highAlertActive = Number(settings.high_alert_until) > Date.now();
         const raidStatus = highAlertActive ? `High alert until ${new Date(Number(settings.high_alert_until)).toLocaleTimeString()}` : raidEnabled ? "Monitoring joins" : "Monitoring disabled";
@@ -500,10 +548,14 @@ class DashboardServer {
         const deliveryRows = data.reportDeliveries.map(delivery => `<tr><td>${escapeHtml(delivery.delivery_type.replaceAll("_", " "))}</td><td>${escapeHtml(delivery.period || "—")}</td><td><span class="status ${delivery.success ? "success" : "failed"}">${delivery.success ? "Delivered" : "Failed"}</span></td><td>${delivery.attempts}</td><td>${escapeHtml(delivery.error || "—")}</td><td>${new Date(Number(delivery.timestamp)).toLocaleString()}</td></tr>`).join("") || '<tr><td colspan="6" class="empty-state">No report deliveries recorded.</td></tr>';
         const reverificationRows = data.reverifications.map(item => `<tr><td><code>${escapeHtml(item.user_id)}</code></td><td>${escapeHtml(item.reason.replaceAll("_", " "))}</td><td>${new Date(Number(item.due_at)).toLocaleString()}</td><td>${item.reminder_count}</td><td><form method="post" action="/guild/${guild.id}/reverification"><input type="hidden" name="csrf" value="${request.session.csrf}"><input type="hidden" name="reverificationAction" value="cancel"><input type="hidden" name="userId" value="${escapeHtml(item.user_id)}"><button class="secondary-button" type="submit">Cancel</button></form></td></tr>`).join("") || '<tr><td colspan="5" class="empty-state">No members are awaiting reverification.</td></tr>';
         const healthIssues = configurationHealth.issues.map(issue => `<li><i>!</i><div><strong>${escapeHtml(issue.label)}</strong><small>${escapeHtml(issue.fix)}</small></div></li>`).join("") || '<li class="healthy"><i>✓</i><div><strong>All systems operational</strong><small>Channels, roles, permissions, and hierarchy passed.</small></div></li>';
+        let onboardingLinks = [];
+        try { onboardingLinks = JSON.parse(settings.onboarding_links_json || "[]"); } catch {}
+        const onboardingLinkFields = [0, 1, 2, 3].map(index => `<label>Button ${index + 1} label<input name="linkLabel${index + 1}" maxlength="80" value="${escapeHtml(onboardingLinks[index]?.label || "")}" placeholder="${index ? "Optional resource" : "Server rules"}"></label><label>Button ${index + 1} URL<input name="linkUrl${index + 1}" maxlength="500" value="${escapeHtml(onboardingLinks[index]?.url || "")}" placeholder="https://..."></label>`).join("");
+        const onboardingRows = data.onboardingDeliveries.map(delivery => `<tr><td><code>${escapeHtml(delivery.user_id)}</code></td><td>${escapeHtml(delivery.trigger_type.replaceAll("_", " "))}</td><td><span class="status ${delivery.status === "FAILED" ? "failed" : "success"}">${escapeHtml(delivery.status.replaceAll("_", " "))}</span></td><td>${escapeHtml(delivery.destinations || "—")}</td><td>${delivery.acknowledged_at ? "Yes" : "No"}</td><td>${new Date(Number(delivery.created_at)).toLocaleString()}</td></tr>`).join("") || '<tr><td colspan="6" class="empty-state">No onboarding deliveries recorded.</td></tr>';
 
         return `${notice}
         <section class="guild-heading"><div><a href="/">← Servers</a><p class="eyebrow">Gatekeeper</p><h1>Verification overview</h1></div><span class="live ${highAlertActive ? "alert" : ""}"><i></i> ${escapeHtml(raidStatus)}</span></section>
-        <div class="dashboard-menu"><button id="dashboardMenuButton" class="cyber-menu-button" type="button" aria-expanded="false" aria-controls="dashboardTabs"><span class="cyber-menu-icon" aria-hidden="true"><i></i><i></i><i></i><b></b></span><span class="menu-copy"><small>Gatekeeper console</small><strong>Navigation</strong></span><em>OPEN</em></button><nav id="dashboardTabs" class="dashboard-tabs" role="tablist" aria-label="Dashboard sections" hidden><button type="button" role="tab" data-dashboard-tab="overview"><span>01</span>Overview</button><button type="button" role="tab" data-dashboard-tab="settings"><span>02</span>Settings</button><button type="button" role="tab" data-dashboard-tab="reverification"><span>03</span>Reverification</button><button type="button" role="tab" data-dashboard-tab="policies"><span>04</span>Policies</button><button type="button" role="tab" data-dashboard-tab="moderation"><span>05</span>Moderation</button><button type="button" role="tab" data-dashboard-tab="activity"><span>06</span>Activity</button></nav></div>
+        <div class="dashboard-menu"><button id="dashboardMenuButton" class="cyber-menu-button" type="button" aria-expanded="false" aria-controls="dashboardTabs"><span class="cyber-menu-icon" aria-hidden="true"><i></i><i></i><i></i><b></b></span><span class="menu-copy"><small>Gatekeeper console</small><strong>Navigation</strong></span><em>OPEN</em></button><nav id="dashboardTabs" class="dashboard-tabs" role="tablist" aria-label="Dashboard sections" hidden><button type="button" role="tab" data-dashboard-tab="overview"><span>01</span>Overview</button><button type="button" role="tab" data-dashboard-tab="settings"><span>02</span>Settings</button><button type="button" role="tab" data-dashboard-tab="reverification"><span>03</span>Reverification</button><button type="button" role="tab" data-dashboard-tab="onboarding"><span>04</span>Onboarding</button><button type="button" role="tab" data-dashboard-tab="policies"><span>05</span>Policies</button><button type="button" role="tab" data-dashboard-tab="moderation"><span>06</span>Moderation</button><button type="button" role="tab" data-dashboard-tab="activity"><span>07</span>Activity</button></nav></div>
         <div class="dashboard-panel" data-dashboard-panel="overview">
         <section id="overview" class="metrics"><article><span>Successful</span><strong>${data.successes}</strong><small>${data.successRate}% success rate</small></article><article><span>Failed</span><strong>${data.failures}</strong><small>All recorded attempts</small></article><article><span>Active challenges</span><strong>${data.active}</strong><small>Awaiting answers</small></article><article><span>Total attempts</span><strong>${data.total}</strong><small>Lifetime activity</small></article></section>
         <section class="analytics-grid"><article class="panel"><div class="panel-title"><div><p class="eyebrow">Last seven days</p><h2>Verification volume</h2></div><div class="legend"><span><i class="success-dot"></i>Success</span><span><i class="failed-dot"></i>Failed</span></div></div><div class="chart">${chart}</div></article><article class="panel"><div class="panel-title"><div><p class="eyebrow">Friction</p><h2>Failure reasons</h2></div></div><ul class="failure-list">${failureRows}</ul></article></section><section class="health-panel panel"><div class="health-score ${configurationHealth.status.toLowerCase()}"><strong>${configurationHealth.score}</strong><span>Health score</span></div><div class="health-content"><div class="panel-title"><div><p class="eyebrow">Configuration diagnostics</p><h2>${escapeHtml(configurationHealth.status.replaceAll("_", " "))}</h2></div><a class="secondary-button" href="/guild/${guild.id}/setup">${settings.setup_completed_at ? "Rerun setup" : "Start setup"}</a></div><ul class="health-issues">${healthIssues}</ul><div class="health-actions"><form method="post" action="/guild/${guild.id}/health-test"><input type="hidden" name="csrf" value="${request.session.csrf}"><button type="submit">Run safe test</button></form><span>Checks the complete flow without assigning roles.</span></div></div></section>
@@ -521,6 +573,7 @@ class DashboardServer {
         <section class="panel activity full-activity security-events"><div class="panel-title"><div><p class="eyebrow">Security timeline</p><h2>Recent high-alert events</h2></div></div><div class="table-wrap"><table><thead><tr><th>Event</th><th>Details</th><th>Time</th></tr></thead><tbody>${securityRows}</tbody></table></div></section>
         <section class="panel activity full-activity report-history"><div class="panel-title"><div><p class="eyebrow">Delivery log</p><h2>Report history</h2></div></div><div class="table-wrap"><table><thead><tr><th>Type</th><th>Period</th><th>Status</th><th>Attempts</th><th>Error</th><th>Time</th></tr></thead><tbody>${deliveryRows}</tbody></table></div></section>
         </div>
+        <div class="dashboard-panel" data-dashboard-panel="onboarding"><section id="onboarding" class="onboarding-layout"><form class="panel onboarding-editor" method="post" action="/guild/${guild.id}/onboarding"><input type="hidden" name="csrf" value="${request.session.csrf}"><div class="panel-title"><div><p class="eyebrow">Post-verification journey</p><h2>Member onboarding</h2></div><label class="toggle"><input type="checkbox" name="onboardingEnabled" ${settings.onboarding_enabled === 1 ? "checked" : ""}><span></span><b>${settings.onboarding_enabled === 1 ? "Enabled" : "Disabled"}</b></label></div><div class="form-grid"><label>Delivery<select name="onboardingDeliveryMode"><option value="DM" ${selected(settings.onboarding_delivery_mode || "DM", "DM")}>Private DM</option><option value="CHANNEL" ${selected(settings.onboarding_delivery_mode, "CHANNEL")}>Public channel</option><option value="BOTH" ${selected(settings.onboarding_delivery_mode, "BOTH")}>DM and channel</option></select></label><label>Welcome channel<select name="onboardingChannelId">${onboardingChannelOptions}</select></label><label class="full">Welcome title<input id="onboardingWelcomeTitle" name="onboardingWelcomeTitle" maxlength="256" value="${escapeHtml(settings.onboarding_welcome_title || "Welcome to the server")}"></label><label class="full">Welcome message<textarea id="onboardingWelcomeMessage" name="onboardingWelcomeMessage" maxlength="4000" rows="4">${escapeHtml(settings.onboarding_welcome_message || "Welcome, {user}! You are now verified in {server}.")}</textarea><small>Use {user} and {server} as placeholders.</small></label><label class="full">Rules and first steps<textarea id="onboardingRulesText" name="onboardingRulesText" maxlength="1024" rows="3">${escapeHtml(settings.onboarding_rules_text || "")}</textarea></label>${onboardingLinkFields}<label>Additional role<select name="onboardingSecondaryRoleId">${onboardingRoleOptions}</select></label><label>Acknowledgment button<input name="onboardingAcknowledgementText" maxlength="80" value="${escapeHtml(settings.onboarding_acknowledgement_text || "I understand")}"></label><label class="toggle"><input type="checkbox" name="onboardingRequireAcknowledgement" ${settings.onboarding_require_acknowledgement === 1 ? "checked" : ""}><span></span><b>Require acknowledgment</b></label><label class="toggle"><input type="checkbox" name="onboardingIncludeTrusted" ${settings.onboarding_include_trusted !== 0 ? "checked" : ""}><span></span><b>Onboard trusted members</b></label><label class="toggle"><input type="checkbox" name="onboardingIncludeManual" ${settings.onboarding_include_manual !== 0 ? "checked" : ""}><span></span><b>Onboard manually verified members</b></label><label class="toggle"><input type="checkbox" name="onboardingFollowupEnabled" ${settings.onboarding_followup_enabled === 1 ? "checked" : ""}><span></span><b>Send delayed follow-up</b></label><label>Follow-up delay (minutes)<input type="number" name="onboardingFollowupDelayMinutes" min="1" max="10080" value="${settings.onboarding_followup_delay_minutes ?? 60}"></label><label class="full">Follow-up message<textarea name="onboardingFollowupMessage" maxlength="4000" rows="3">${escapeHtml(settings.onboarding_followup_message || "Need help getting started? Review the server resources or contact a moderator.")}</textarea></label></div><div class="onboarding-actions"><button type="submit">Save onboarding</button></div></form><aside class="panel onboarding-preview-panel"><div class="panel-title"><div><p class="eyebrow">Safe preview</p><h2>Member experience</h2></div></div><div class="discord-preview"><div class="discord-avatar">G</div><div class="discord-message"><div><strong>Gatekeeper</strong><span class="bot-tag">APP</span><time>Now</time></div><div class="discord-embed"><h3 id="onboardingPreviewTitle">${escapeHtml(settings.onboarding_welcome_title || "Welcome to the server")}</h3><p id="onboardingPreviewMessage">${escapeHtml(settings.onboarding_welcome_message || "Welcome, {user}! You are now verified in {server}.")}</p><div id="onboardingPreviewRules" class="preview-rules">${escapeHtml(settings.onboarding_rules_text || "")}</div><small>Powered by SecureBootLabs</small></div><button type="button" class="discord-button">${escapeHtml(settings.onboarding_acknowledgement_text || "I understand")}</button></div></div><form method="post" action="/guild/${guild.id}/onboarding-test"><input type="hidden" name="csrf" value="${request.session.csrf}"><button type="submit" class="secondary-button">Run safe test</button></form><small>No message is sent and no role is assigned.</small></aside></section><section class="panel activity onboarding-history"><div class="panel-title"><div><p class="eyebrow">Delivery history</p><h2>Recent onboarding activity</h2></div></div><div class="table-wrap"><table><thead><tr><th>User</th><th>Trigger</th><th>Status</th><th>Delivered to</th><th>Acknowledged</th><th>Time</th></tr></thead><tbody>${onboardingRows}</tbody></table></div></section></div>
         <script src="/dashboard.js" defer></script>`;
     }
 

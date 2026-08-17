@@ -22,6 +22,7 @@ const packageJson = require("../../package.json");
 const SecurityReportService = require("../services/SecurityReportService");
 const ReverificationService = require("../services/ReverificationService");
 const ConfigurationHealthService = require("../services/ConfigurationHealthService");
+const OnboardingService = require("../services/OnboardingService");
 
 module.exports = {
 
@@ -89,6 +90,8 @@ module.exports = {
             client.reverificationService.start();
             client.configurationHealthService = client.configurationHealthService || new ConfigurationHealthService(client);
             client.configurationHealthService.start();
+            client.onboardingService = client.onboardingService || new OnboardingService(client);
+            client.onboardingService.start();
 
         }
         catch (error) {

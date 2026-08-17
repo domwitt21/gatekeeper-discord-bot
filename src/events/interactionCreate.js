@@ -131,6 +131,10 @@ module.exports = {
 
             }
 
+            if (interaction.isButton() && interaction.customId.startsWith("onboarding_ack:")) {
+                return client.onboardingService?.acknowledge(interaction);
+            }
+
 
 
             /**

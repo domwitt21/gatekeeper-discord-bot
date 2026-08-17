@@ -137,3 +137,17 @@ test("tracks setup completion and configuration health", async t => {
     assert.equal(settings.last_health_checked_at, 2000);
     assert.equal(settings.last_health_alert_at, 3000);
 });
+
+test("persists onboarding delivery, acknowledgment, and follow-up state", async t => {
+    const database = await temporaryDatabase(t);
+    const id = await database.onboardingDeliveries.create({ guildId: "guild", userId: "user", triggerType: "CAPTCHA",
+        destinations: "DM", status: "AWAITING_ACK", createdAt: 1000 });
+    assert.equal((await database.onboardingDeliveries.latestAwaiting("guild", "user")).delivery_id, id);
+    await database.onboardingDeliveries.acknowledge(id, 2000, 3000);
+    assert.equal((await database.onboardingDeliveries.dueFollowups(2999)).length, 0);
+    assert.equal((await database.onboardingDeliveries.dueFollowups(3000)).length, 1);
+    await database.onboardingDeliveries.markFollowup(id, 4000);
+    const delivery = (await database.onboardingDeliveries.recent("guild"))[0];
+    assert.equal(delivery.acknowledged_at, 2000);
+    assert.equal(delivery.followup_sent_at, 4000);
+});
