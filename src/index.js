@@ -153,6 +153,7 @@ async function shutdown(signal) {
 
         client.securityReportService?.stop();
         client.reverificationService?.stop();
+        client.configurationHealthService?.stop();
 
         if (client.database) {
 

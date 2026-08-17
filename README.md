@@ -72,6 +72,12 @@ The migration copies guild configuration and verification logs. Active CAPTCHA c
 - When `LOG_RETENTION_DAYS` is greater than zero, older verification logs are removed hourly. The default of `0` retains logs indefinitely.
 - Shutdown waits for the dashboard and database pool to close.
 
+## Guided setup and configuration health
+
+The dashboard includes a four-step setup wizard for selecting the verification channel and role, choosing a recommended security preset, previewing the Discord message, and launching the flow. The wizard may be rerun without resetting verification history.
+
+Gatekeeper continuously scores configuration health by checking channel availability, role availability, bot permissions, role hierarchy, embed support, and CAPTCHA attachment access. Administrators can run a safe dashboard test that changes no member roles or verification records. Health regressions are checked at startup and every six hours, with rate-limited warnings recorded in the security timeline.
+
 ## Validation
 
 ```sh

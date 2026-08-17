@@ -86,3 +86,47 @@ if (menuButton && tabList && tabPanels.length) {
         if (!event.target.closest(".dashboard-menu")) setMenu(false);
     });
 }
+
+const wizard = document.getElementById("setupWizard");
+if (wizard) {
+    const steps = Array.from(wizard.querySelectorAll("[data-wizard-step]"));
+    const progress = Array.from(document.querySelectorAll(".wizard-progress li"));
+    const back = document.getElementById("wizardBack");
+    const next = document.getElementById("wizardNext");
+    const launch = document.getElementById("wizardLaunch");
+    const number = document.getElementById("wizardStepNumber");
+    const channel = document.getElementById("wizardVerifyChannel");
+    const role = document.getElementById("wizardVerifiedRole");
+    let current = 0;
+
+    const selectedText = select => select?.options[select.selectedIndex]?.textContent?.trim() || "Not selected";
+    function updateReview() {
+        document.getElementById("wizardChannelReview").textContent = selectedText(channel);
+        document.getElementById("wizardRoleReview").textContent = selectedText(role);
+        document.getElementById("wizardPresetReview").textContent = wizard.querySelector('input[name="verificationPreset"]:checked')?.value || "STANDARD";
+    }
+    function showStep(index) {
+        current = Math.min(Math.max(index, 0), steps.length - 1);
+        steps.forEach((step, stepIndex) => { step.hidden = stepIndex !== current; step.classList.toggle("active", stepIndex === current); });
+        progress.forEach((item, stepIndex) => item.classList.toggle("active", stepIndex <= current));
+        back.hidden = current === 0;
+        next.hidden = current === steps.length - 1;
+        launch.hidden = current !== steps.length - 1;
+        number.textContent = String(current + 1);
+        if (current === steps.length - 1) updateReview();
+        steps[current].querySelector("h2")?.focus({ preventScroll: true });
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+    next.addEventListener("click", () => {
+        if (current === 1 && (!channel.reportValidity() || !role.reportValidity())) return;
+        showStep(current + 1);
+    });
+    back.addEventListener("click", () => showStep(current - 1));
+    wizard.addEventListener("keydown", event => {
+        if (event.key === "Enter" && event.target.tagName !== "TEXTAREA" && current < steps.length - 1) {
+            event.preventDefault();
+            next.click();
+        }
+    });
+    showStep(0);
+}

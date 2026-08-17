@@ -209,6 +209,21 @@ class GuildRepository extends BaseRepository {
         return this.run("UPDATE guild_settings SET reverification_paused = ?, updated_at = CURRENT_TIMESTAMP WHERE guild_id = ?", [paused ? 1 : 0, guildId]);
     }
 
+    markSetupComplete(guildId, userId, timestamp = Date.now()) {
+        this.ensureConnected();
+        return this.run("UPDATE guild_settings SET setup_completed_at = ?, setup_completed_by = ?, updated_at = CURRENT_TIMESTAMP WHERE guild_id = ?", [timestamp, userId, guildId]);
+    }
+
+    updateHealth(guildId, score, timestamp = Date.now()) {
+        this.ensureConnected();
+        return this.run("UPDATE guild_settings SET last_health_score = ?, last_health_checked_at = ? WHERE guild_id = ?", [score, timestamp, guildId]);
+    }
+
+    setLastHealthAlertAt(guildId, timestamp = Date.now()) {
+        this.ensureConnected();
+        return this.run("UPDATE guild_settings SET last_health_alert_at = ? WHERE guild_id = ?", [timestamp, guildId]);
+    }
+
     /**
      * Update the verification message ID after posting.
      *

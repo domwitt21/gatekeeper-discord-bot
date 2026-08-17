@@ -123,3 +123,17 @@ test("queues, reminds, enforces, and removes pending reverification", async t =>
     await database.reverifications.remove("guild", "user");
     assert.equal(await database.reverifications.find("guild", "user"), null);
 });
+
+test("tracks setup completion and configuration health", async t => {
+    const database = await temporaryDatabase(t);
+    await database.guilds.saveSettings({ guildId: "guild-health", verifyChannelId: "channel", verifiedRoleId: "role" });
+    await database.guilds.markSetupComplete("guild-health", "admin", 1000);
+    await database.guilds.updateHealth("guild-health", 85, 2000);
+    await database.guilds.setLastHealthAlertAt("guild-health", 3000);
+    const settings = await database.guilds.getSettings("guild-health");
+    assert.equal(settings.setup_completed_at, 1000);
+    assert.equal(settings.setup_completed_by, "admin");
+    assert.equal(settings.last_health_score, 85);
+    assert.equal(settings.last_health_checked_at, 2000);
+    assert.equal(settings.last_health_alert_at, 3000);
+});

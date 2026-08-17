@@ -21,6 +21,7 @@ const {
 const packageJson = require("../../package.json");
 const SecurityReportService = require("../services/SecurityReportService");
 const ReverificationService = require("../services/ReverificationService");
+const ConfigurationHealthService = require("../services/ConfigurationHealthService");
 
 module.exports = {
 
@@ -86,6 +87,8 @@ module.exports = {
             client.securityReportService.start();
             client.reverificationService = client.reverificationService || new ReverificationService(client);
             client.reverificationService.start();
+            client.configurationHealthService = client.configurationHealthService || new ConfigurationHealthService(client);
+            client.configurationHealthService.start();
 
         }
         catch (error) {

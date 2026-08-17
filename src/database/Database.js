@@ -103,6 +103,11 @@ class Database {
         await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS reverification_reminder_days INTEGER DEFAULT 3");
         await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS reverification_notify_dm INTEGER DEFAULT 1");
         await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS reverification_channel_id TEXT");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS setup_completed_at BIGINT DEFAULT 0");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS setup_completed_by TEXT");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS last_health_score INTEGER");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS last_health_checked_at BIGINT DEFAULT 0");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS last_health_alert_at BIGINT DEFAULT 0");
     }
 
     schema(logId, dateType) {
@@ -134,6 +139,8 @@ class Database {
                 reverification_enforcement_enabled INTEGER DEFAULT 0, reverification_paused INTEGER DEFAULT 0,
                 reverification_grace_days INTEGER DEFAULT 7, reverification_reminder_days INTEGER DEFAULT 3,
                 reverification_notify_dm INTEGER DEFAULT 1, reverification_channel_id TEXT,
+                setup_completed_at BIGINT DEFAULT 0, setup_completed_by TEXT, last_health_score INTEGER,
+                last_health_checked_at BIGINT DEFAULT 0, last_health_alert_at BIGINT DEFAULT 0,
                 created_at ${dateType} DEFAULT CURRENT_TIMESTAMP, updated_at ${dateType} DEFAULT CURRENT_TIMESTAMP
             );
             CREATE TABLE IF NOT EXISTS captchas (
@@ -214,6 +221,9 @@ class Database {
         additions.push(["reverification_enforcement_enabled", "INTEGER DEFAULT 0"], ["reverification_paused", "INTEGER DEFAULT 0"],
             ["reverification_grace_days", "INTEGER DEFAULT 7"], ["reverification_reminder_days", "INTEGER DEFAULT 3"],
             ["reverification_notify_dm", "INTEGER DEFAULT 1"], ["reverification_channel_id", "TEXT"]);
+        additions.push(["setup_completed_at", "BIGINT DEFAULT 0"], ["setup_completed_by", "TEXT"],
+            ["last_health_score", "INTEGER"], ["last_health_checked_at", "BIGINT DEFAULT 0"],
+            ["last_health_alert_at", "BIGINT DEFAULT 0"]);
         for (const [name, definition] of additions) {
             if (!guildColumns.has(name)) this.db.exec(`ALTER TABLE guild_settings ADD COLUMN ${name} ${definition}`);
         }
