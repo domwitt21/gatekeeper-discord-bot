@@ -151,6 +151,8 @@ async function shutdown(signal) {
             await client.dashboard.stop();
         }
 
+        client.securityReportService?.stop();
+
         if (client.database) {
 
             await client.database.close();

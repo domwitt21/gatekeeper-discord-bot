@@ -1,6 +1,7 @@
 const { PermissionFlagsBits, SlashCommandBuilder } = require("discord.js");
 const CommandBuilder = require("../../builders/CommandBuilder");
 const ResponseHandler = require("../../handlers/ResponseHandler");
+const ModerationService = require("../../services/ModerationService");
 
 const expiryOption = option => option.setName("duration-days").setDescription("Optional number of days before this policy expires.").setMinValue(1).setMaxValue(3650).setRequired(false);
 const reasonOption = option => option.setName("reason").setDescription("Optional administrator note.").setMaxLength(250).setRequired(false);
@@ -43,6 +44,7 @@ module.exports = CommandBuilder.create({
         const reason = interaction.options.getString("reason");
         await client.database.trustPolicies.upsert({ guildId: interaction.guild.id, subjectType, subjectId: subject.id,
             policy, reason, expiresAt, createdBy: interaction.user.id });
+        if (policy === "DENY") await ModerationService.revokeIfDenied(client, interaction.guild, subject.id, interaction.user.id, reason);
         await client.database.securityEvents.record({ guildId: interaction.guild.id, type: `TRUST_POLICY_${policy}`,
             details: `${subjectType} ${subject.id} by ${interaction.user.id}` });
         return ResponseHandler.success(interaction, `${subject} is now ${policy === "DENY" ? "denied" : "trusted"}${durationDays ? ` for ${durationDays} day(s)` : ""}.`);

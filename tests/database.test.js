@@ -81,3 +81,14 @@ test("creates, replaces, expires, and removes trust policies", async t => {
     await database.trustPolicies.remove("guild", "USER", "user");
     assert.equal((await database.trustPolicies.listForGuild("guild")).length, 0);
 });
+
+test("records report delivery success and failure history", async t => {
+    const database = await temporaryDatabase(t);
+    await database.reportDeliveries.record({ guildId: "guild", deliveryType: "SCHEDULED_REPORT", period: "WEEKLY", channelId: "channel", success: true, attempts: 1, timestamp: 1000 });
+    await database.reportDeliveries.record({ guildId: "guild", deliveryType: "ALERT_CRITICAL", channelId: "channel", success: false, attempts: 3, error: "Missing permission", timestamp: 2000 });
+    const history = await database.reportDeliveries.recent("guild");
+    assert.equal(history.length, 2);
+    assert.equal(history[0].success, 0);
+    assert.equal(history[0].attempts, 3);
+    assert.equal(history[0].error, "Missing permission");
+});

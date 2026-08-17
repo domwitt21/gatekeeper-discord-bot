@@ -1917,6 +1917,13 @@ class VerificationManager {
 
         }
 
+        resetMemberState(guildId, userId) {
+            const key = this.sessionKey(guildId, userId);
+            this.clearRuntimeSession(guildId, userId);
+            this.lockouts.delete(key);
+            this.answerCooldowns.delete(key);
+        }
+
         async logSuspiciousAccount({ member, settings, reason }) {
             if (!settings?.log_channel_id) return;
             try {

@@ -19,6 +19,7 @@ const {
 } = require("discord.js");
 
 const packageJson = require("../../package.json");
+const SecurityReportService = require("../services/SecurityReportService");
 
 module.exports = {
 
@@ -79,6 +80,9 @@ module.exports = {
             console.log("");
             console.log("✅ Bot is online and ready.");
             console.log("");
+
+            client.securityReportService = client.securityReportService || new SecurityReportService(client);
+            client.securityReportService.start();
 
         }
         catch (error) {

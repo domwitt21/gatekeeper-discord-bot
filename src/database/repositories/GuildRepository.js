@@ -113,6 +113,15 @@ class GuildRepository extends BaseRepository {
                 raid_alert_cooldown_minutes = ?,
                 automatic_trusted_verification = ?,
                 trusted_account_age_days = ?,
+                remove_verified_role_on_deny = ?,
+                scheduled_reports_enabled = ?,
+                report_frequency = ?,
+                report_channel_id = ?,
+                report_hour_utc = ?,
+                report_weekday = ?,
+                quiet_hours_start_utc = ?,
+                quiet_hours_end_utc = ?,
+                minimum_alert_severity = ?,
                 updated_by = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE guild_id = ?
@@ -141,6 +150,15 @@ class GuildRepository extends BaseRepository {
                 settings.raidAlertCooldownMinutes,
                 settings.automaticTrustedVerification ? 1 : 0,
                 settings.trustedAccountAgeDays,
+                settings.removeVerifiedRoleOnDeny ? 1 : 0,
+                settings.scheduledReportsEnabled ? 1 : 0,
+                settings.reportFrequency,
+                settings.reportChannelId ?? null,
+                settings.reportHourUtc,
+                settings.reportWeekday,
+                settings.quietHoursStartUtc,
+                settings.quietHoursEndUtc,
+                settings.minimumAlertSeverity,
                 settings.updatedBy ?? null,
                 guildId
             ]
@@ -156,6 +174,11 @@ class GuildRepository extends BaseRepository {
     setLastRaidAlertAt(guildId, timestamp) {
         this.ensureConnected();
         return this.run("UPDATE guild_settings SET last_raid_alert_at = ? WHERE guild_id = ?", [timestamp, guildId]);
+    }
+
+    setLastReportAt(guildId, timestamp) {
+        this.ensureConnected();
+        return this.run("UPDATE guild_settings SET last_report_at = ? WHERE guild_id = ?", [timestamp, guildId]);
     }
 
     /**

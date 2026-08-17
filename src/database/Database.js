@@ -7,6 +7,7 @@ const CaptchaRepository = require("./repositories/CaptchaRepository");
 const LogRepository = require("./repositories/LogRepository");
 const SecurityEventRepository = require("./repositories/SecurityEventRepository");
 const TrustPolicyRepository = require("./repositories/TrustPolicyRepository");
+const ReportDeliveryRepository = require("./repositories/ReportDeliveryRepository");
 
 function postgresSql(sql) {
     let index = 0;
@@ -24,6 +25,7 @@ class Database {
         this.logs = null;
         this.securityEvents = null;
         this.trustPolicies = null;
+        this.reportDeliveries = null;
         this.cleanupTimer = null;
     }
 
@@ -47,6 +49,7 @@ class Database {
         this.logs = new LogRepository(this);
         this.securityEvents = new SecurityEventRepository(this);
         this.trustPolicies = new TrustPolicyRepository(this);
+        this.reportDeliveries = new ReportDeliveryRepository(this);
         await this.cleanup();
         this.cleanupTimer = setInterval(() => this.cleanup().catch(error => console.error("Database cleanup failed", error)), 3600000);
         this.cleanupTimer.unref();
@@ -74,6 +77,16 @@ class Database {
         await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS last_raid_alert_at BIGINT DEFAULT 0");
         await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS automatic_trusted_verification INTEGER DEFAULT 0");
         await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS trusted_account_age_days INTEGER DEFAULT 90");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS remove_verified_role_on_deny INTEGER DEFAULT 0");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS scheduled_reports_enabled INTEGER DEFAULT 0");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS report_frequency TEXT DEFAULT 'WEEKLY'");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS report_channel_id TEXT");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS report_hour_utc INTEGER DEFAULT 12");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS report_weekday INTEGER DEFAULT 1");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS quiet_hours_start_utc INTEGER DEFAULT 0");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS quiet_hours_end_utc INTEGER DEFAULT 0");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS minimum_alert_severity TEXT DEFAULT 'WARNING'");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS last_report_at BIGINT DEFAULT 0");
     }
 
     schema(logId, dateType) {
@@ -95,6 +108,11 @@ class Database {
                 high_alert_action TEXT DEFAULT 'MONITOR', high_alert_minimum_account_age_days INTEGER DEFAULT 7,
                 raid_alert_cooldown_minutes INTEGER DEFAULT 30, last_raid_alert_at BIGINT DEFAULT 0,
                 automatic_trusted_verification INTEGER DEFAULT 0, trusted_account_age_days INTEGER DEFAULT 90,
+                remove_verified_role_on_deny INTEGER DEFAULT 0,
+                scheduled_reports_enabled INTEGER DEFAULT 0, report_frequency TEXT DEFAULT 'WEEKLY',
+                report_channel_id TEXT, report_hour_utc INTEGER DEFAULT 12, report_weekday INTEGER DEFAULT 1,
+                quiet_hours_start_utc INTEGER DEFAULT 0, quiet_hours_end_utc INTEGER DEFAULT 0,
+                minimum_alert_severity TEXT DEFAULT 'WARNING', last_report_at BIGINT DEFAULT 0,
                 created_at ${dateType} DEFAULT CURRENT_TIMESTAMP, updated_at ${dateType} DEFAULT CURRENT_TIMESTAMP
             );
             CREATE TABLE IF NOT EXISTS captchas (
@@ -117,12 +135,18 @@ class Database {
                 reason TEXT, expires_at BIGINT DEFAULT 0, created_by TEXT, created_at BIGINT NOT NULL,
                 PRIMARY KEY(guild_id, subject_type, subject_id)
             );
+            CREATE TABLE IF NOT EXISTS report_deliveries (
+                id ${logId}, guild_id TEXT, delivery_type TEXT NOT NULL, period TEXT,
+                channel_id TEXT, success INTEGER NOT NULL, attempts INTEGER DEFAULT 1,
+                error TEXT, timestamp BIGINT NOT NULL
+            );
             CREATE INDEX IF NOT EXISTS idx_verification_logs_guild_timestamp ON verification_logs(guild_id, timestamp DESC);
             CREATE INDEX IF NOT EXISTS idx_captchas_expires_at ON captchas(expires_at);
             CREATE INDEX IF NOT EXISTS idx_verification_logs_guild_success_timestamp ON verification_logs(guild_id, success, timestamp DESC);
             CREATE INDEX IF NOT EXISTS idx_dashboard_sessions_expires_at ON dashboard_sessions(expires_at);
             CREATE INDEX IF NOT EXISTS idx_security_events_guild_timestamp ON security_events(guild_id, timestamp DESC);
             CREATE INDEX IF NOT EXISTS idx_trust_policies_guild ON trust_policies(guild_id, policy);
+            CREATE INDEX IF NOT EXISTS idx_report_deliveries_guild_timestamp ON report_deliveries(guild_id, timestamp DESC);
         `;
     }
 
@@ -147,6 +171,11 @@ class Database {
             ["high_alert_minimum_account_age_days", "INTEGER DEFAULT 7"],
             ["raid_alert_cooldown_minutes", "INTEGER DEFAULT 30"], ["last_raid_alert_at", "BIGINT DEFAULT 0"]);
         additions.push(["automatic_trusted_verification", "INTEGER DEFAULT 0"], ["trusted_account_age_days", "INTEGER DEFAULT 90"]);
+        additions.push(["remove_verified_role_on_deny", "INTEGER DEFAULT 0"]);
+        additions.push(["scheduled_reports_enabled", "INTEGER DEFAULT 0"], ["report_frequency", "TEXT DEFAULT 'WEEKLY'"],
+            ["report_channel_id", "TEXT"], ["report_hour_utc", "INTEGER DEFAULT 12"], ["report_weekday", "INTEGER DEFAULT 1"],
+            ["quiet_hours_start_utc", "INTEGER DEFAULT 0"], ["quiet_hours_end_utc", "INTEGER DEFAULT 0"],
+            ["minimum_alert_severity", "TEXT DEFAULT 'WARNING'"], ["last_report_at", "BIGINT DEFAULT 0"]);
         for (const [name, definition] of additions) {
             if (!guildColumns.has(name)) this.db.exec(`ALTER TABLE guild_settings ADD COLUMN ${name} ${definition}`);
         }

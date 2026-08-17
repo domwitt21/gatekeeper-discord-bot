@@ -17,6 +17,7 @@
 
 const VerificationManager =
     require("../managers/VerificationManager");
+const CommandHandler = require("../handlers/CommandHandler");
 
 
 
@@ -49,31 +50,7 @@ module.exports = {
             ) {
 
 
-                const command =
-
-                    client.commands.get(
-
-                        interaction.commandName
-
-                    );
-
-
-
-                if (!command) {
-
-                    return;
-
-                }
-
-
-
-                return command.execute(
-
-                    interaction,
-
-                    client
-
-                );
+                return CommandHandler.execute(client, interaction);
 
 
             }

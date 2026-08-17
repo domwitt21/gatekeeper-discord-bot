@@ -30,3 +30,36 @@
 .policy-table {
     margin-top: 26px;
 }
+
+.moderation-panel {
+    margin-bottom: 18px;
+    scroll-margin-top: 140px;
+}
+
+.member-search {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+}
+
+.member-result {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    margin: 22px 0;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    color: var(--muted);
+}
+
+.member-result strong { color: var(--text); }
+
+.confirmation {
+    display: flex;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+}
+
+.confirmation input { width: auto; }

@@ -12,6 +12,14 @@ After adding or changing slash commands, register them with Discord once:
 npm run deploy
 ```
 
+## Moderation and recovery
+
+Administrators can inspect and recover member verification with `/verification-status`, `/verify-user`, `/unverify`, and `/reset-verification`, or use the dashboard member lookup. Role removal and state resets require explicit confirmation, and moderator notes are written to the security audit timeline. Automatic verified-role removal for newly denied users is available but disabled by default.
+
+## Security reports
+
+Use `/security-report` to preview a daily or weekly security summary or deliver it to the configured report channel. The dashboard can enable scheduled daily or weekly delivery, select a UTC delivery time, configure quiet hours and alert severity, and review delivery attempts and failures. Scheduled reports are disabled by default. Discord delivery is retried up to three times before a failure is recorded.
+
 ## Database modes
 
 Gatekeeper uses PostgreSQL whenever `DATABASE_URL` is set. Without it, the bot uses the SQLite file configured by `DATABASE_PATH`. SQLite remains convenient for local development; PostgreSQL is recommended for production because it survives application replacement and supports future horizontal scaling.
