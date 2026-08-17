@@ -10,7 +10,8 @@ module.exports = {
             client.database.run("DELETE FROM security_events WHERE guild_id = ?", [guild.id]),
             client.database.run("DELETE FROM trust_policies WHERE guild_id = ?", [guild.id]),
             client.database.run("DELETE FROM report_deliveries WHERE guild_id = ?", [guild.id]),
-            client.database.run("DELETE FROM member_verifications WHERE guild_id = ?", [guild.id])
+            client.database.run("DELETE FROM member_verifications WHERE guild_id = ?", [guild.id]),
+            client.database.run("DELETE FROM pending_reverifications WHERE guild_id = ?", [guild.id])
         ]);
         console.log(`Removed data for guild: ${guild.name} (${guild.id})`);
     }

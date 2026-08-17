@@ -894,6 +894,7 @@ class VerificationManager {
                     details: `${member.id}: ${trustDecision.source}` });
                 await this.client.database.verificationRecords.upsert({ guildId, userId: member.id,
                     policyVersion: settings.policy_version, method: `TRUST_${trustDecision.source}` });
+                await this.client.database.reverifications.remove(guildId, member.id);
                 try { await this.logVerification({ member, success: true }); } catch (error) { console.error("Unable to log trusted bypass", error); }
                 return { success: true, bypass: true, source: trustDecision.source };
             }
@@ -1741,6 +1742,7 @@ class VerificationManager {
             const settings = await VerificationManager.loadExistingConfiguration(this.client, member.guild.id);
             await this.client.database.verificationRecords.upsert({ guildId: member.guild.id, userId: member.id,
                 policyVersion: settings?.policy_version || 1, method: "CAPTCHA" });
+            await this.client.database.reverifications.remove(member.guild.id, member.id);
 
             /**
              * Send response

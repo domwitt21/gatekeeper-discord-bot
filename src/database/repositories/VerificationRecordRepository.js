@@ -17,6 +17,21 @@ class VerificationRecordRepository extends BaseRepository {
         return this.first("SELECT * FROM member_verifications WHERE guild_id = ? AND user_id = ?", [guildId, userId]);
     }
 
+    listForGuild(guildId, limit = 100) {
+        const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
+        return this.list("SELECT * FROM member_verifications WHERE guild_id = ? ORDER BY verified_at ASC LIMIT ?", [guildId, safeLimit]);
+    }
+
+    listReverificationCandidates(guildId, policyVersion, verifiedBefore, limit = 25) {
+        const safeLimit = Math.min(Math.max(Number(limit) || 25, 1), 100);
+        return this.list(`SELECT verification.* FROM member_verifications verification
+            WHERE verification.guild_id = ?
+            AND (verification.policy_version < ? OR (? > 0 AND verification.verified_at <= ?))
+            AND NOT EXISTS (SELECT 1 FROM pending_reverifications pending
+                WHERE pending.guild_id = verification.guild_id AND pending.user_id = verification.user_id)
+            ORDER BY verification.verified_at ASC LIMIT ?`, [guildId, policyVersion, verifiedBefore, verifiedBefore, safeLimit]);
+    }
+
     remove(guildId, userId) {
         this.ensureConnected();
         return this.run("DELETE FROM member_verifications WHERE guild_id = ? AND user_id = ?", [guildId, userId]);

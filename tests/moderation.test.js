@@ -16,7 +16,8 @@ function fixture(options = {}) {
         captchas: { findActive: async () => options.challenge ? {} : null, deleteActive: async () => {} },
         securityEvents: { record: async event => events.push(event) },
         trustPolicies: { listForGuild: async () => [] },
-        verificationRecords: { upsert: async () => {}, remove: async () => {}, find: async () => null }
+        verificationRecords: { upsert: async () => {}, remove: async () => {}, find: async () => null },
+        reverifications: { remove: async () => {} }
     }, verificationManager: options.manager };
     return { client, member, events, removed, added };
 }

@@ -28,6 +28,12 @@ Changes to enforcement-related verification settings increment the server's poli
 
 Use `/reverify-user` or the dashboard's **Require reverification** action to remove one member's verified role and invalidate their prior verification. The action requires explicit confirmation and is written to the security audit timeline. Bulk reverification is intentionally not enabled in this phase.
 
+### Automated reverification
+
+Gatekeeper scans verification records hourly in rate-limited batches and builds a dashboard preview of members whose policy version or verification age is out of date. Automatic enforcement is disabled by default. Administrators can configure a 1–30 day grace period, daily DM or channel reminders, pause or resume processing, run an immediate scan, and cancel individual queued actions.
+
+When enforcement is enabled, Gatekeeper removes the verified role after the grace period and records the reminder and enforcement events in the security timeline. Explicitly trusted users and members of trusted roles are exempt. Queue cancellation is persistent until the member successfully verifies again or an administrator manually requires reverification.
+
 ## Security reports
 
 Use `/security-report` to preview a daily or weekly security summary or deliver it to the configured report channel. The dashboard can enable scheduled daily or weekly delivery, select a UTC delivery time, configure quiet hours and alert severity, and review delivery attempts and failures. Scheduled reports are disabled by default. Discord delivery is retried up to three times before a failure is recorded.

@@ -104,3 +104,22 @@ test("persists and replaces member verification versions", async t => {
     await database.verificationRecords.remove("guild", "user");
     assert.equal(await database.verificationRecords.find("guild", "user"), null);
 });
+
+test("queues, reminds, enforces, and removes pending reverification", async t => {
+    const database = await temporaryDatabase(t);
+    await database.reverifications.upsert({ guildId: "guild", userId: "user", detectedAt: 1000, dueAt: 2000, reason: "POLICY_UPDATED" });
+    await database.reverifications.markReminded("guild", "user", 1500);
+    let item = await database.reverifications.find("guild", "user");
+    assert.equal(item.status, "PENDING");
+    assert.equal(item.reminder_count, 1);
+    await database.reverifications.markCancelled("guild", "user");
+    item = await database.reverifications.find("guild", "user");
+    assert.equal(item.status, "CANCELLED");
+    await database.reverifications.upsert({ guildId: "guild", userId: "user", detectedAt: 1000, dueAt: 2000, reason: "POLICY_UPDATED" });
+    await database.reverifications.markEnforced("guild", "user", 2500);
+    item = await database.reverifications.find("guild", "user");
+    assert.equal(item.status, "ENFORCED");
+    assert.equal(item.enforced_at, 2500);
+    await database.reverifications.remove("guild", "user");
+    assert.equal(await database.reverifications.find("guild", "user"), null);
+});

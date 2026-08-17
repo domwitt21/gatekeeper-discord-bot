@@ -125,6 +125,12 @@ class GuildRepository extends BaseRepository {
                 verification_preset = ?,
                 strict_minimum_account_age_days = ?,
                 reverify_after_days = ?,
+                reverification_enforcement_enabled = ?,
+                reverification_paused = ?,
+                reverification_grace_days = ?,
+                reverification_reminder_days = ?,
+                reverification_notify_dm = ?,
+                reverification_channel_id = ?,
                 updated_by = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE guild_id = ?
@@ -165,6 +171,12 @@ class GuildRepository extends BaseRepository {
                 settings.verificationPreset,
                 settings.strictMinimumAccountAgeDays,
                 settings.reverifyAfterDays,
+                settings.reverificationEnforcementEnabled ? 1 : 0,
+                settings.reverificationPaused ? 1 : 0,
+                settings.reverificationGraceDays,
+                settings.reverificationReminderDays,
+                settings.reverificationNotifyDm ? 1 : 0,
+                settings.reverificationChannelId ?? null,
                 settings.updatedBy ?? null,
                 guildId
             ]
@@ -190,6 +202,11 @@ class GuildRepository extends BaseRepository {
     incrementPolicyVersion(guildId) {
         this.ensureConnected();
         return this.run("UPDATE guild_settings SET policy_version = policy_version + 1, updated_at = CURRENT_TIMESTAMP WHERE guild_id = ?", [guildId]);
+    }
+
+    setReverificationPaused(guildId, paused) {
+        this.ensureConnected();
+        return this.run("UPDATE guild_settings SET reverification_paused = ?, updated_at = CURRENT_TIMESTAMP WHERE guild_id = ?", [paused ? 1 : 0, guildId]);
     }
 
     /**

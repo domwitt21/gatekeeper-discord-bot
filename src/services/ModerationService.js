@@ -15,6 +15,7 @@ class ModerationService {
         if (!member.roles.cache.has(settings.verified_role_id)) await member.roles.add(settings.verified_role_id);
         await client.database.verificationRecords.upsert({ guildId: member.guild.id, userId: member.id,
             policyVersion: settings.policy_version || 1, method: "MANUAL" });
+        await client.database.reverifications.remove(member.guild.id, member.id);
         await this.audit(client, member.guild.id, "MANUAL_VERIFY", member.id, actorId, note);
         return { changed: true };
     }
@@ -24,6 +25,7 @@ class ModerationService {
         const changed = member.roles.cache.has(settings.verified_role_id);
         if (changed) await member.roles.remove(settings.verified_role_id);
         await client.database.verificationRecords.remove(member.guild.id, member.id);
+        await client.database.reverifications.remove(member.guild.id, member.id);
         await this.audit(client, member.guild.id, "MANUAL_UNVERIFY", member.id, actorId, note);
         return { changed };
     }
@@ -39,6 +41,7 @@ class ModerationService {
         const settings = await this.settings(client, member.guild.id);
         if (member.roles.cache.has(settings.verified_role_id)) await member.roles.remove(settings.verified_role_id);
         await client.database.verificationRecords.remove(member.guild.id, member.id);
+        await client.database.reverifications.remove(member.guild.id, member.id);
         await client.database.captchas.deleteActive(member.guild.id, member.id);
         client.verificationManager?.resetMemberState(member.guild.id, member.id);
         await this.audit(client, member.guild.id, "REVERIFICATION_REQUIRED", member.id, actorId, note);
