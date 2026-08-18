@@ -1,6 +1,6 @@
-# SentraGuard
+# Gatekeeper
 
-SentraGuard is SecureBootLabs' Discord verification bot and administration dashboard. It provides CAPTCHA verification, automatic role assignment, configurable challenge policies, audit logs, and verification analytics.
+Gatekeeper is SecureBootLabs' Discord verification bot and administration dashboard. It provides CAPTCHA verification, automatic role assignment, configurable challenge policies, audit logs, and verification analytics.
 
 ## Trust and deny policies
 
@@ -24,15 +24,15 @@ Each server can choose a verification preset from the dashboard:
 - **Standard** preserves the server's individually configured verification settings and is the default for existing servers.
 - **Strict** blocks suspicious accounts, uses a hard CAPTCHA with no more than three attempts, and enforces the configured strict minimum account age.
 
-Changes to enforcement-related verification settings increment the server's policy version. SentraGuard records the policy version each member completed and shows administrators when that verification is out of date. The optional reverification interval tracks time-based expiration; set it to `0` to disable it.
+Changes to enforcement-related verification settings increment the server's policy version. Gatekeeper records the policy version each member completed and shows administrators when that verification is out of date. The optional reverification interval tracks time-based expiration; set it to `0` to disable it.
 
 Use `/reverify-user` or the dashboard's **Require reverification** action to remove one member's verified role and invalidate their prior verification. The action requires explicit confirmation and is written to the security audit timeline. Bulk reverification is intentionally not enabled in this phase.
 
 ### Automated reverification
 
-SentraGuard scans verification records hourly in rate-limited batches and builds a dashboard preview of members whose policy version or verification age is out of date. Automatic enforcement is disabled by default. Administrators can configure a 1–30 day grace period, daily DM or channel reminders, pause or resume processing, run an immediate scan, and cancel individual queued actions.
+Gatekeeper scans verification records hourly in rate-limited batches and builds a dashboard preview of members whose policy version or verification age is out of date. Automatic enforcement is disabled by default. Administrators can configure a 1–30 day grace period, daily DM or channel reminders, pause or resume processing, run an immediate scan, and cancel individual queued actions.
 
-When enforcement is enabled, SentraGuard removes the verified role after the grace period and records the reminder and enforcement events in the security timeline. Explicitly trusted users and members of trusted roles are exempt. Queue cancellation is persistent until the member successfully verifies again or an administrator manually requires reverification.
+When enforcement is enabled, Gatekeeper removes the verified role after the grace period and records the reminder and enforcement events in the security timeline. Explicitly trusted users and members of trusted roles are exempt. Queue cancellation is persistent until the member successfully verifies again or an administrator manually requires reverification.
 
 ## Security reports
 
@@ -40,7 +40,7 @@ Use `/security-report` to preview a daily or weekly security summary or deliver 
 
 ## Database modes
 
-SentraGuard uses PostgreSQL whenever `DATABASE_URL` is set. Without it, the bot uses the SQLite file configured by `DATABASE_PATH`. SQLite remains convenient for local development; PostgreSQL is recommended for production because it survives application replacement and supports future horizontal scaling.
+Gatekeeper uses PostgreSQL whenever `DATABASE_URL` is set. Without it, the bot uses the SQLite file configured by `DATABASE_PATH`. SQLite remains convenient for local development; PostgreSQL is recommended for production because it survives application replacement and supports future horizontal scaling.
 
 Required production variables:
 
@@ -76,7 +76,7 @@ The migration copies guild configuration and verification logs. Active CAPTCHA c
 
 The dashboard includes a four-step setup wizard for selecting the verification channel and role, choosing a recommended security preset, previewing the Discord message, and launching the flow. The wizard may be rerun without resetting verification history.
 
-SentraGuard continuously scores configuration health by checking channel availability, role availability, bot permissions, role hierarchy, embed support, and CAPTCHA attachment access. Administrators can run a safe dashboard test that changes no member roles or verification records. Health regressions are checked at startup and every six hours, with rate-limited warnings recorded in the security timeline.
+Gatekeeper continuously scores configuration health by checking channel availability, role availability, bot permissions, role hierarchy, embed support, and CAPTCHA attachment access. Administrators can run a safe dashboard test that changes no member roles or verification records. Health regressions are checked at startup and every six hours, with rate-limited warnings recorded in the security timeline.
 
 ## Post-verification onboarding
 
@@ -88,7 +88,7 @@ Administrators may require an acknowledgment before assigning an additional role
 
 The Analytics dashboard supports preset or custom date ranges, previous-period comparisons, verification trends, completion and attempt averages, failure analysis, security signals, reverification outcomes, and onboarding performance. Completion and attempt averages populate for verification events recorded after this feature is deployed.
 
-Administrators can download formula-injection-safe CSV records with privacy-safe hashed member identifiers or a branded SentraGuard PDF summary. Every export is authorized through the Discord dashboard session and written to the security audit timeline. Scheduled security reports support daily, weekly, and monthly delivery. Per-server retention can be set from 1–3650 days; `0` retains history indefinitely.
+Administrators can download formula-injection-safe CSV records with privacy-safe hashed member identifiers or a branded Gatekeeper PDF summary. Every export is authorized through the Discord dashboard session and written to the security audit timeline. Scheduled security reports support daily, weekly, and monthly delivery. Per-server retention can be set from 1–3650 days; `0` retains history indefinitely.
 
 ## Validation
 

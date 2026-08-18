@@ -87,7 +87,7 @@ class ReverificationService {
         }
         if (now < Number(item.due_at)) return { pending: true };
         const role = guild.roles.cache.get(settings.verified_role_id);
-        if (role && member.roles.cache.has(role.id)) await member.roles.remove(role, "SentraGuard reverification grace period expired");
+        if (role && member.roles.cache.has(role.id)) await member.roles.remove(role, "Gatekeeper reverification grace period expired");
         await this.client.database.verificationRecords.remove(guild.id, member.id);
         await this.client.database.reverifications.markEnforced(guild.id, member.id, now);
         await this.client.database.securityEvents.record({ guildId: guild.id, type: "REVERIFICATION_ENFORCED",

@@ -43,12 +43,12 @@ class JoinVelocityService {
         if (result.notify) await client.database.guilds.setLastRaidAlertAt(member.guild.id, now);
         if (result.notify && client.securityReportService) {
             await client.securityReportService.deliverAlert(member.guild, settings, { severity: "CRITICAL", title: "High-Alert Mode Activated",
-                description: `${result.count} members joined within ${result.windowSeconds} seconds. SentraGuard activated high-alert mode for ${result.highAlertMinutes} minutes. Enforcement follows the server's configured high-alert action.` }).catch(error => console.error("Unable to deliver critical raid alert", error));
+                description: `${result.count} members joined within ${result.windowSeconds} seconds. Gatekeeper activated high-alert mode for ${result.highAlertMinutes} minutes. Enforcement follows the server's configured high-alert action.` }).catch(error => console.error("Unable to deliver critical raid alert", error));
         } else if (result.notify && settings?.log_channel_id) {
             try {
                 const channel = await member.guild.channels.fetch(settings.log_channel_id);
                 if (channel) await channel.send({ embeds: [EmbedFactory.warning("High-Alert Mode Activated",
-                    `${result.count} members joined within ${result.windowSeconds} seconds. SentraGuard activated high-alert mode for ${result.highAlertMinutes} minutes. Enforcement follows the server's configured high-alert action.`)] });
+                    `${result.count} members joined within ${result.windowSeconds} seconds. Gatekeeper activated high-alert mode for ${result.highAlertMinutes} minutes. Enforcement follows the server's configured high-alert action.`)] });
             } catch (error) { console.error("Unable to send join-velocity alert", error); }
         }
         return result;

@@ -21,7 +21,7 @@ module.exports = Object.freeze({
 
     brand: {
 
-        name: "SentraGuard",
+        name: "Gatekeeper",
 
         footer: "Powered by SecureBootLabs",
 

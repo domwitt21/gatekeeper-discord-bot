@@ -13,7 +13,7 @@ module.exports = CommandBuilder.create({
     permissions: [PermissionFlagsBits.ManageGuild],
     data: new SlashCommandBuilder()
         .setName("policy")
-        .setDescription("Manage SentraGuard trust and deny policies.")
+        .setDescription("Manage Gatekeeper trust and deny policies.")
         .addSubcommand(command => command.setName("trust-user").setDescription("Allow a user to bypass CAPTCHA.")
             .addUserOption(option => option.setName("user").setDescription("User to trust.").setRequired(true))
             .addIntegerOption(expiryOption).addStringOption(reasonOption))

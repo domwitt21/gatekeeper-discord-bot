@@ -24,13 +24,13 @@ class ConfigurationHealthService {
         const permissions = verifyChannel && botMember ? verifyChannel.permissionsFor(botMember) : null;
         add("verify_channel", verifyChannel?.isTextBased?.(), "Verification channel is available", "Select an active text channel.");
         add("verified_role", verifiedRole && !verifiedRole.managed, "Verified role is available", "Select a normal server role.");
-        add("manage_roles", botMember?.permissions?.has(PermissionFlagsBits.ManageRoles), "SentraGuard can manage roles", "Grant SentraGuard the Manage Roles permission.");
+        add("manage_roles", botMember?.permissions?.has(PermissionFlagsBits.ManageRoles), "Gatekeeper can manage roles", "Grant Gatekeeper the Manage Roles permission.");
         add("role_hierarchy", botMember && verifiedRole && botMember.roles.highest.position > verifiedRole.position,
-            "SentraGuard is above the verified role", "Move the SentraGuard role above the verified role.");
-        add("view_channel", permissions?.has(PermissionFlagsBits.ViewChannel), "SentraGuard can view the verification channel", "Allow SentraGuard to view the verification channel.");
-        add("send_messages", permissions?.has(PermissionFlagsBits.SendMessages), "SentraGuard can send verification messages", "Allow Send Messages in the verification channel.");
-        add("embed_links", permissions?.has(PermissionFlagsBits.EmbedLinks), "SentraGuard can send embeds", "Allow Embed Links in the verification channel.");
-        add("attach_files", permissions?.has(PermissionFlagsBits.AttachFiles), "SentraGuard can attach CAPTCHA images", "Allow Attach Files in the verification channel.");
+            "Gatekeeper is above the verified role", "Move the Gatekeeper role above the verified role.");
+        add("view_channel", permissions?.has(PermissionFlagsBits.ViewChannel), "Gatekeeper can view the verification channel", "Allow Gatekeeper to view the verification channel.");
+        add("send_messages", permissions?.has(PermissionFlagsBits.SendMessages), "Gatekeeper can send verification messages", "Allow Send Messages in the verification channel.");
+        add("embed_links", permissions?.has(PermissionFlagsBits.EmbedLinks), "Gatekeeper can send embeds", "Allow Embed Links in the verification channel.");
+        add("attach_files", permissions?.has(PermissionFlagsBits.AttachFiles), "Gatekeeper can attach CAPTCHA images", "Allow Attach Files in the verification channel.");
         add("log_channel", !settings.log_channel_id || logChannel?.isTextBased?.(), "Log channel is available", "Select an active log channel or disable logging.", false);
         add("verification_enabled", Number(settings.verification_enabled) !== 0, "Verification is enabled", "Enable the verification flow.", false);
         const failedWeight = checks.reduce((total, check) => total + (!check.ok ? check.critical ? 15 : 5 : 0), 0);

@@ -29,7 +29,7 @@ class SecurityReportService {
 
     createEmbed(report) {
         return EmbedFactory.create({ title: `${report.period === "DAILY" ? "Daily" : report.period === "MONTHLY" ? "Monthly" : "Weekly"} Security Report`,
-            description: `SentraGuard activity for the last ${report.days} day(s).`,
+            description: `Gatekeeper activity for the last ${report.days} day(s).`,
             fields: [
                 { name: "Verification attempts", value: String(report.total), inline: true },
                 { name: "Successful", value: String(report.successes), inline: true },
