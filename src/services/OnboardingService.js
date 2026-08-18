@@ -46,7 +46,7 @@ class OnboardingService {
         if (!settings.onboarding_secondary_role_id || member.roles.cache.has(settings.onboarding_secondary_role_id)) return false;
         const role = member.guild.roles.cache.get(settings.onboarding_secondary_role_id);
         if (!role) return false;
-        await member.roles.add(role, "Gatekeeper onboarding completed");
+        await member.roles.add(role, "SentraGuard onboarding completed");
         return true;
     }
 

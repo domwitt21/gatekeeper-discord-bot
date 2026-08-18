@@ -32,6 +32,8 @@ test("scheduled reports are off by default and respect schedule and quiet hours"
     const enabled = { scheduled_reports_enabled: 1, report_frequency: "WEEKLY", report_weekday: 1, report_hour_utc: 12, last_report_at: 0 };
     assert.equal(service.isDue(enabled, mondayNoon), true);
     assert.equal(service.isDue({ ...enabled, quiet_hours_start_utc: 11, quiet_hours_end_utc: 13 }, mondayNoon), false);
+    const monthStart = new Date(Date.UTC(2026, 1, 1, 12));
+    assert.equal(service.isDue({ ...enabled, report_frequency: "MONTHLY" }, monthStart), true);
 });
 
 test("successful channel delivery records history", async () => {

@@ -5,7 +5,7 @@ const SecurityReportService = require("../../services/SecurityReportService");
 
 module.exports = CommandBuilder.create({ category: "admin", cooldown: 10, deferReply: true,
     permissions: [PermissionFlagsBits.ManageGuild],
-    data: new SlashCommandBuilder().setName("security-report").setDescription("Generate a Gatekeeper security report.")
+    data: new SlashCommandBuilder().setName("security-report").setDescription("Generate a SentraGuard security report.")
         .addStringOption(option => option.setName("period").setDescription("Reporting period.").setRequired(true)
             .addChoices({ name: "Last 24 hours", value: "DAILY" }, { name: "Last 7 days", value: "WEEKLY" }))
         .addBooleanOption(option => option.setName("deliver-to-channel").setDescription("Also send the report to the configured report channel.")),

@@ -36,16 +36,20 @@ class LogRepository extends BaseRepository {
                 user_id,
                 success,
                 failure_reason,
-                timestamp
+                timestamp,
+                attempts,
+                verification_duration
             )
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             `,
             [
                 entry.guildId,
                 entry.userId,
                 entry.success ? 1 : 0,
                 entry.failureReason ?? null,
-                entry.timestamp ?? this.now()
+                entry.timestamp ?? this.now(),
+                entry.attempts ?? null,
+                entry.verificationDuration ?? null
             ]
         );
 

@@ -126,6 +126,7 @@ class Database {
         await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS onboarding_followup_enabled INTEGER DEFAULT 0");
         await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS onboarding_followup_delay_minutes INTEGER DEFAULT 60");
         await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS onboarding_followup_message TEXT DEFAULT 'Need help getting started? Review the server resources or contact a moderator.'");
+        await this.db.query("ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS data_retention_days INTEGER DEFAULT 0");
     }
 
     schema(logId, dateType) {
@@ -167,6 +168,7 @@ class Database {
                 onboarding_include_trusted INTEGER DEFAULT 1, onboarding_include_manual INTEGER DEFAULT 1,
                 onboarding_followup_enabled INTEGER DEFAULT 0, onboarding_followup_delay_minutes INTEGER DEFAULT 60,
                 onboarding_followup_message TEXT DEFAULT 'Need help getting started? Review the server resources or contact a moderator.',
+                data_retention_days INTEGER DEFAULT 0,
                 created_at ${dateType} DEFAULT CURRENT_TIMESTAMP, updated_at ${dateType} DEFAULT CURRENT_TIMESTAMP
             );
             CREATE TABLE IF NOT EXISTS captchas (
@@ -220,6 +222,7 @@ class Database {
             CREATE INDEX IF NOT EXISTS idx_pending_reverifications_guild_due ON pending_reverifications(guild_id, status, due_at);
             CREATE INDEX IF NOT EXISTS idx_onboarding_deliveries_guild_created ON onboarding_deliveries(guild_id, created_at DESC);
             CREATE INDEX IF NOT EXISTS idx_onboarding_deliveries_followup_due ON onboarding_deliveries(followup_due_at, followup_sent_at);
+            CREATE INDEX IF NOT EXISTS idx_security_events_guild_type_timestamp ON security_events(guild_id, type, timestamp DESC);
         `;
     }
 
@@ -266,6 +269,7 @@ class Database {
             ["onboarding_include_manual", "INTEGER DEFAULT 1"], ["onboarding_followup_enabled", "INTEGER DEFAULT 0"],
             ["onboarding_followup_delay_minutes", "INTEGER DEFAULT 60"],
             ["onboarding_followup_message", "TEXT DEFAULT 'Need help getting started? Review the server resources or contact a moderator.'"]);
+        additions.push(["data_retention_days", "INTEGER DEFAULT 0"]);
         for (const [name, definition] of additions) {
             if (!guildColumns.has(name)) this.db.exec(`ALTER TABLE guild_settings ADD COLUMN ${name} ${definition}`);
         }
@@ -302,6 +306,18 @@ class Database {
         const days = Number(this.options.logRetentionDays) || 0;
         if (days > 0) {
             await this.run("DELETE FROM verification_logs WHERE timestamp < ?", [Math.floor(now / 1000) - days * 86400]);
+        }
+        if (this.guilds) {
+            for (const settings of await this.guilds.getAllSettings()) {
+                const retentionDays = Number(settings.data_retention_days) || 0;
+                if (retentionDays > 0) {
+                    const secondsCutoff = Math.floor(now / 1000) - retentionDays * 86400;
+                    const millisecondsCutoff = now - retentionDays * 86400000;
+                    await this.run("DELETE FROM verification_logs WHERE guild_id = ? AND timestamp < ?", [settings.guild_id, secondsCutoff]);
+                    await this.run("DELETE FROM security_events WHERE guild_id = ? AND timestamp < ?", [settings.guild_id, millisecondsCutoff]);
+                    await this.run("DELETE FROM onboarding_deliveries WHERE guild_id = ? AND created_at < ?", [settings.guild_id, millisecondsCutoff]);
+                }
+            }
         }
     }
 

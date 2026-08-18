@@ -1739,7 +1739,9 @@ class VerificationManager {
 
                 success:
 
-                    true
+                    true,
+
+                session
 
             });
 
@@ -1856,7 +1858,9 @@ class VerificationManager {
 
                 success,
 
-                reason
+                reason,
+
+                session
 
             } = options;
 
@@ -1866,7 +1870,9 @@ class VerificationManager {
                 guildId: member.guild.id,
                 userId: member.id,
                 success,
-                failureReason: reason ?? null
+                failureReason: reason ?? null,
+                attempts: session?.attempts ?? null,
+                verificationDuration: session?.createdAt ? Math.max(0, Math.round((Date.now() - Number(session.createdAt)) / 1000)) : null
             });
 
             const settings = await VerificationManager.loadExistingConfiguration(

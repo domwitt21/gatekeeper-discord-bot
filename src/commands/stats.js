@@ -20,7 +20,7 @@ module.exports = CommandBuilder.create({
         const total = successes + failures;
         const rate = total ? ((successes / total) * 100).toFixed(1) : "0.0";
         const embed = EmbedFactory.create({
-            title: "Gatekeeper verification statistics",
+            title: "SentraGuard verification statistics",
             fields: [
                 { name: "Successful", value: String(successes), inline: true },
                 { name: "Failed", value: String(failures), inline: true },

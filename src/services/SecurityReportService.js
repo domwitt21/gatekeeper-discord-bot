@@ -8,7 +8,7 @@ class SecurityReportService {
     }
 
     async generate(guildId, period = "WEEKLY", now = Date.now()) {
-        const days = period === "DAILY" ? 1 : 7;
+        const days = period === "DAILY" ? 1 : period === "MONTHLY" ? 30 : 7;
         const verificationSince = Math.floor((now - days * 86400000) / 1000);
         const securitySince = now - days * 86400000;
         const verification = await this.client.database.get(`SELECT
@@ -28,8 +28,8 @@ class SecurityReportService {
     }
 
     createEmbed(report) {
-        return EmbedFactory.create({ title: `${report.period === "DAILY" ? "Daily" : "Weekly"} Security Report`,
-            description: `Gatekeeper activity for the last ${report.days} day(s).`,
+        return EmbedFactory.create({ title: `${report.period === "DAILY" ? "Daily" : report.period === "MONTHLY" ? "Monthly" : "Weekly"} Security Report`,
+            description: `SentraGuard activity for the last ${report.days} day(s).`,
             fields: [
                 { name: "Verification attempts", value: String(report.total), inline: true },
                 { name: "Successful", value: String(report.successes), inline: true },
@@ -103,10 +103,11 @@ class SecurityReportService {
     isDue(settings, now = new Date()) {
         if (Number(settings.scheduled_reports_enabled) !== 1 || this.inQuietHours(settings, now)) return false;
         if (now.getUTCHours() !== Number(settings.report_hour_utc)) return false;
-        const frequency = settings.report_frequency === "DAILY" ? "DAILY" : "WEEKLY";
+        const frequency = ["DAILY", "MONTHLY"].includes(settings.report_frequency) ? settings.report_frequency : "WEEKLY";
         if (frequency === "WEEKLY" && now.getUTCDay() !== Number(settings.report_weekday)) return false;
+        if (frequency === "MONTHLY" && now.getUTCDate() !== 1) return false;
         const elapsed = now.getTime() - (Number(settings.last_report_at) || 0);
-        return elapsed >= (frequency === "DAILY" ? 20 : 6 * 24) * 3600000;
+        return elapsed >= (frequency === "DAILY" ? 20 : frequency === "MONTHLY" ? 27 * 24 : 6 * 24) * 3600000;
     }
 
     async tick(now = new Date()) {

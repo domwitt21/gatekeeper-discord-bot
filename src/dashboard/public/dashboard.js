@@ -31,7 +31,7 @@ const tabList = document.getElementById("dashboardTabs");
 const tabButtons = Array.from(document.querySelectorAll("[data-dashboard-tab]"));
 const tabPanels = Array.from(document.querySelectorAll("[data-dashboard-panel]"));
 const hashTabs = { overview: "overview", configuration: "settings", reports: "settings", message: "settings",
-    reverification: "reverification", onboarding: "onboarding", policies: "policies", moderation: "moderation", activity: "activity" };
+    reverification: "reverification", onboarding: "onboarding", policies: "policies", moderation: "moderation", analytics: "analytics", activity: "activity" };
 
 function setMenu(open) {
     if (!menuButton || !tabList) return;
@@ -140,4 +140,32 @@ for (const [inputId, previewId] of onboardingPreviewBindings) {
     const input = document.getElementById(inputId);
     const preview = document.getElementById(previewId);
     if (input && preview) input.addEventListener("input", () => { preview.textContent = input.value; });
+}
+
+const settingsForm = document.getElementById("configuration");
+const reportFrequency = settingsForm?.querySelector('select[name="reportFrequency"]');
+if (reportFrequency && !reportFrequency.querySelector('option[value="MONTHLY"]')) {
+    const monthly = new Option("Monthly", "MONTHLY", false, settingsForm.dataset.reportFrequency === "MONTHLY");
+    reportFrequency.add(monthly);
+}
+if (reportFrequency && !settingsForm.querySelector('input[name="dataRetentionDays"]')) {
+    const label = document.createElement("label");
+    label.textContent = "Data retention (days)";
+    const input = document.createElement("input");
+    input.type = "number"; input.name = "dataRetentionDays"; input.min = "0"; input.max = "3650";
+    input.value = settingsForm.dataset.retentionDays || "0";
+    const help = document.createElement("small"); help.textContent = "0 retains security history indefinitely.";
+    label.append(input, help);
+    reportFrequency.closest(".form-grid")?.append(label);
+}
+
+for (const link of document.querySelectorAll('.export-actions a[href*="analytics.csv"], .export-actions a[href*="security-report.pdf"]')) {
+    link.addEventListener("click", () => {
+        const toolbar = link.closest(".analytics-toolbar");
+        const start = toolbar?.querySelector('input[name="start"]')?.value;
+        const end = toolbar?.querySelector('input[name="end"]')?.value;
+        const url = new URL(link.href);
+        if (start && end) { url.searchParams.set("start", start); url.searchParams.set("end", end); }
+        link.href = url.toString();
+    });
 }

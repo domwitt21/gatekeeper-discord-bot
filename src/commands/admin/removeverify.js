@@ -11,7 +11,7 @@ module.exports = CommandBuilder.create({
     botPermissions: [PermissionFlagsBits.ManageMessages],
     data: new SlashCommandBuilder()
         .setName("removeverify")
-        .setDescription("Remove Gatekeeper verification from this server."),
+        .setDescription("Remove SentraGuard verification from this server."),
     async execute(interaction, client) {
         const settings = await client.database.guilds.getSettings(interaction.guild.id);
         if (!settings) return ResponseHandler.warning(interaction, "Verification is not configured for this server.");
